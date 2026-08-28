@@ -402,4 +402,54 @@ public class TestPostgresNetworkDAO {
         PostgresNetworkDAO dao = new PostgresNetworkDAO(conn);
         dao.getNetworkV3SummariesByIdStrList(List.of("not-a-uuid"), UUID.randomUUID(), null, null);
     }
+
+
+    // ── certified must stay in the shared-listing projections ─────────────────
+    //
+    // Both shared listings read isCertified with a plain rs.getBoolean, so a column dropped from the
+    // select list degrades silently to "not certified" for every shared network rather than failing.
+    // Neither method has any other unit coverage, and listNetworksSharedBySpecificUser had its mapper
+    // rewritten from positional indices to column labels — which makes the select list load-bearing in
+    // a way it was not before. Neither touches the permission resolver, so a bare mock Connection and
+    // one captured statement is the whole setup.
+
+    @Test
+    public void testListSharedNetworksSqlSelectsCertified() throws Exception {
+        Connection conn = createMock(Connection.class);
+        Capture<String> sql = newCapture();
+        PreparedStatement pst = createNiceMock(PreparedStatement.class);
+        ResultSet rs = createNiceMock(ResultSet.class);
+        expect(rs.next()).andReturn(false).anyTimes();
+        expect(pst.executeQuery()).andReturn(rs).anyTimes();
+        replay(pst, rs);
+        expect(conn.prepareStatement(capture(sql))).andReturn(pst);
+        replay(conn);
+
+        new PostgresNetworkDAO(conn).listSharedNetworks(VIEWER);
+
+        assertTrue("shared-with-me listing must select certified",
+                sql.getValue().contains("certified"));
+        assertTrue("shared-with-me listing must select ndexdoi — isCertified is meaningless without it",
+                sql.getValue().contains("ndexdoi"));
+    }
+
+    @Test
+    public void testListNetworksSharedBySpecificUserSqlSelectsCertified() throws Exception {
+        Connection conn = createMock(Connection.class);
+        Capture<String> sql = newCapture();
+        PreparedStatement pst = createNiceMock(PreparedStatement.class);
+        ResultSet rs = createNiceMock(ResultSet.class);
+        expect(rs.next()).andReturn(false).anyTimes();
+        expect(pst.executeQuery()).andReturn(rs).anyTimes();
+        replay(pst, rs);
+        expect(conn.prepareStatement(capture(sql))).andReturn(pst);
+        replay(conn);
+
+        new PostgresNetworkDAO(conn).listNetworksSharedBySpecificUser(VIEWER, NET, false);
+
+        assertTrue("another user's home listing must select certified",
+                sql.getValue().contains("certified"));
+        assertTrue("another user's home listing must select ndexdoi",
+                sql.getValue().contains("ndexdoi"));
+    }
 }

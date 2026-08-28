@@ -2369,8 +2369,7 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 					networkSummary.setIsCompleted(rs.getBoolean("iscomplete"));
 					networkSummary.setIsValid(rs.getBoolean("is_validated"));
 					networkSummary.setDoi(rs.getString("ndexdoi"));
-					boolean certifiedValue = rs.getBoolean("certified");
-					networkSummary.setIsCertified(rs.wasNull() ? null : Boolean.valueOf(certifiedValue));
+					networkSummary.setIsCertified(rs.getBoolean("certified"));
 
 					networkSummary.setEdges((Integer) rs.getObject("edgecount"));
 					networkSummary.setVisibility(rs.getString("visibility"));
@@ -2448,8 +2447,7 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 		          boolean isValidValue = rs.getBoolean("is_validated");
 		          summary.setIsValid(rs.wasNull() ? null : Boolean.valueOf(isValidValue));
 		          summary.setDoi(rs.getString("ndexdoi"));
-		          boolean certifiedValue = rs.getBoolean("certified");
-		          summary.setIsCertified(rs.wasNull() ? null : Boolean.valueOf(certifiedValue));
+		          summary.setIsCertified(rs.getBoolean("certified"));
 		          result.add(summary);
 		      }
 		  }

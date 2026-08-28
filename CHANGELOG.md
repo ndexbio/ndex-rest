@@ -27,7 +27,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **`isCertified` on file listings** — network entries from `GET /v3/files/folders/{folderid}/list`, `GET /v3/users/{userid}/home`, "shared with me", and `POST /v3/search/files` now report `isCertified` alongside the existing `doi`. Further details in [ndex-object-model/60](https://github.com/ndexbio/ndex-object-model/pull/60). [#195](https://github.com/ndexbio/ndex-rest/pull/195)
+- **`isCertified` on file listings** — network entries from `GET /v3/files/folders/{folderid}/list`, `GET /v3/users/{userid}/home`, `GET /v3/files/sharing/list` ("shared with me"), `GET /v3/files/trash`, `GET /v2/user/{userid}/showcase`, the MCP `get_folder` tool, and `POST /v3/search/files` now report `isCertified` alongside the existing `doi`. Further details in [ndex-object-model/60](https://github.com/ndexbio/ndex-object-model/pull/60). [#195](https://github.com/ndexbio/ndex-rest/pull/195)
+  - **How to read it — `isCertified` is only meaningful together with `doi`:**
+    - `doi` **absent** → certification is **not applicable**. `isCertified` reports `false`; ignore it.
+    - `doi` **present** and `isCertified` **`false`** → **pre-certified**. The network still accepts a
+    reference via `PUT /v2/network/{networkid}/reference`, which certifies it.
+    - `isCertified` **`true`** → **certified**. Locked; the reference can no longer be set.
+
+    `doi` may be the sentinel `"Pending"` while a mint is in flight, so a present `doi` does not imply
+    a resolvable DOI — the pre-certified test above holds for both `"Pending"` and a minted DOI.
   - The `ndex-object-model` dependency advances 3.0.3 → 3.0.6, which is what carries the new field.
   - **Why it is needed:** `doi` alone cannot distinguish a *pre-certified* network from a certified
   one. A DOI requested with `isCertified=false` leaves the network locked but still able to receive
@@ -35,11 +43,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   happens — so a network can carry a real DOI while `certified` is still false. A client asking "can
   this network still take a reference?" previously had to fetch the full network summary for every
   row in a listing.
+  - **The value is always present for `type=NETWORK`**, as `true` or `false`. It is absent only for
+  `type=FOLDER` and `type=SHORTCUT`, which have no certification state, and on servers older than
+  3.0.6, which do not report it at all. Absence therefore means *not applicable*, never *unknown* —
+  use `doi` per the rule above to tell "not applicable" from "not yet certified".
   - `POST /v3/search/files` keeps its existing `attributes.isCertified` copy, so consumers of that
-  key continue to work.
-  - The field is omitted rather than sent as null for folders and shortcuts, which have no
-  certification state. Treat an absent value as *unknown*, not as *not certified*: deployments older
-  than this release omit it from folder and home listings entirely.
+  key continue to work. It is now a deprecated alias of the top-level field and always carries the
+  same value.
+  - `GET /v3/files/trash` also begins reporting `doi`, which it never did before; without it the
+  reading rule above could not be applied to trashed networks.
   - No database migration is required; the `certified` column already existed and was simply not
   selected.
 

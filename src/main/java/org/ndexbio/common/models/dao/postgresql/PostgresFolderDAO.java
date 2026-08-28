@@ -743,8 +743,10 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	                    // A network with a DOI that is not yet certified is "pre-certified": its
 	                    // reference can still be added, which certifies it. Callers cannot tell that
 	                    // apart from the DOI alone, since a DOI may be minted before certification.
-	                    boolean certifiedValue = rs.getBoolean("certified");
-	                    summary.setIsCertified(rs.wasNull() ? null : Boolean.valueOf(certifiedValue));
+	                    // Always present for networks: the column is DEFAULT false and is never
+	                    // written null, so a plain read matches what the summary and search
+	                    // endpoints already emit. Folders and shortcuts never set it at all.
+	                    summary.setIsCertified(rs.getBoolean("certified"));
 	                    results.add(summary);
 	                }
 	            }
@@ -1209,8 +1211,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	                    summary.setIsValid(isValidValue);
 	                }
 	                summary.setDoi(doi);
-	                boolean certifiedValue = rs.getBoolean("certified");
-	                summary.setIsCertified(rs.wasNull() ? null : Boolean.valueOf(certifiedValue));
+	                summary.setIsCertified(rs.getBoolean("certified"));
 	                result.add(summary);
 	            }
 	        }
