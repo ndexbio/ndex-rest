@@ -336,6 +336,48 @@ public class TestPostgresFolderDAO {
         verify(resolver);
     }
 
+    // ── certified must stay in the listing projection ─────────────────────────
+    //
+    // isCertified is read with a plain rs.getBoolean, so a SQL NULL — or a column dropped from the
+    // select list — both surface as false rather than as an error. Dropping it would therefore make
+    // every network in every folder listing silently report "not certified", including networks that
+    // really are certified and locked. No mapper test can catch that, because the mapper would still
+    // be doing exactly what it was told; only the query shape reveals it.
+    @Test
+    public void testListingSqlSelectsCertified() throws Exception {
+        Connection conn = createMock(Connection.class);
+        FilePermissionResolver resolver = createMock(FilePermissionResolver.class);
+
+        Set<UUID> granted = Collections.singleton(FOLDER);
+        expect(resolver.grantedFolderIds(USER, Permissions.READ)).andReturn(granted);
+        expect(resolver.readableConditionSql(FileType.FOLDER, "f", USER, granted)).andReturn("TRUE");
+        expect(resolver.readableConditionSql(FileType.NETWORK, "n", USER, granted)).andReturn("TRUE");
+        expect(resolver.readableConditionSql(FileType.SHORTCUT, "s", USER, granted)).andReturn("TRUE");
+
+        Capture<String> sql = newCapture(org.easymock.CaptureType.ALL);
+        for (int i = 0; i < 3; i++) {
+            PreparedStatement pst = createNiceMock(PreparedStatement.class);
+            ResultSet rs = createNiceMock(ResultSet.class);
+            expect(rs.next()).andReturn(false).anyTimes();
+            expect(pst.executeQuery()).andReturn(rs).anyTimes();
+            replay(pst, rs);
+            expect(conn.prepareStatement(capture(sql))).andReturn(pst);
+        }
+        replay(conn, resolver);
+
+        PostgresFolderDAO dao = new PostgresFolderDAO(conn);
+        dao.setPermissionResolver(resolver);
+        dao.listReadableItemsInFolder(FOLDER, false, null, USER);
+
+        // Order matches testListingSqlComputesIsSharedFromAncestorChain: folders, networks, shortcuts.
+        String networkSql = sql.getValues().get(1);
+        assertTrue("network listing must select certified, or every entry reports isCertified=false",
+                networkSql.contains("certified"));
+        assertTrue("network listing must keep selecting ndexdoi — isCertified is meaningless without it",
+                networkSql.contains("ndexdoi"));
+        verify(resolver);
+    }
+
     // Note: there is no folder-audience test here. Solr moved from index-time access lists to
     // query-time scope filtering, which removed getFolderPermissionsWithUsernames along with its only
     // caller. The surviving network audience path (getAllMembershipsOnNetwork -> effectiveMembers, still

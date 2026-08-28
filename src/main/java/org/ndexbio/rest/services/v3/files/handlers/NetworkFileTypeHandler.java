@@ -23,6 +23,7 @@ import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.persistence.CX2NetworkLoader;
 import org.ndexbio.common.persistence.CXNetworkLoader;
 import org.ndexbio.common.util.NdexUUIDFactory;
+import org.ndexbio.model.exceptions.ForbiddenOperationException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.CopyRequest;
@@ -148,6 +149,15 @@ public class NetworkFileTypeHandler extends AbstractFileTypeHandler {
         try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
             if (!dao.isAdmin(fileId, userId)) {
                 throw new NdexException("Not the owner of network " + fileId);
+            }
+            // A minted DOI registers the network's URL with EZID once and that registration is
+            // never revisited, so changing visibility afterwards strands a published citation on
+            // a network readers can no longer open — a certified network is minted PUBLIC with no
+            // access key in its DOI URL. Mirrors the guard on PUT /v2/network/{id}/systemproperty,
+            // which reaches this same field. Keyed off hasDOI rather than isCertified so a network
+            // left stuck by a failed mint is frozen too; Cancel_DOI clears the DOI and releases it.
+            if (dao.hasDOI(fileId)) {
+                throw new ForbiddenOperationException("Network with DOI can't be modified.");
             }
             dao.updateNetworkVisibility(fileId, visibility, true);
             dao.commit();

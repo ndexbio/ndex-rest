@@ -1819,6 +1819,191 @@ echo "${F162_PRIV_BODY}" | grep -qE '"visibility"[[:space:]]*:[[:space:]]*"PRIVA
   || api_fail "REGRESSION (issue #162): PRIVATE FOLDER item in /v3/search/files results does not report visibility=PRIVATE. Body: ${F162_PRIV_BODY:0:600}"
 api_pass "search visibility=PRIVATE → FOLDER item reports visibility=PRIVATE"
 
+# ── STEP: isCertified is reported on file listings (#194) ────────────────────
+# Network entries in the v3 file listings now carry isCertified alongside doi, so a client can tell
+# a certified network from a "pre-certified" one (DOI minted, reference not yet added) without
+# fetching a full summary per row. Five DAO mappers produce those entries and each is reached by a
+# different caller, so each needs its own call: listItemsInFolderOrHome (folder /list),
+# listPublicRootItemsOfUser (anonymous home), listSharedNetworks (shared-with-me),
+# listNetworksSharedBySpecificUser (another user's home) and listTrashedItemsOfUser (trash), plus
+# NFSSearchProvider for search — which also keeps a legacy attributes.isCertified copy.
+#
+# The value is always present for type=NETWORK and absent only for FOLDER/SHORTCUT, which have no
+# certification state, so the folder assertion below is what gives "absent" its meaning.
+#
+# The network stays at home root: the home listings select parent IS NULL, so a network moved into a
+# folder would never appear in them and those assertions would pass vacuously. certified and ndexdoi
+# are set with psql because the only API that certifies a network is the DOI mint, which needs an
+# EZID service this container does not run.
+if [[ -z "${REMOTE_NDEX_URL}" ]]; then
+  step "isCertified is reported on file listings (#194)"
+
+  CERT_FOLDER_NAME="certfolder194${RANDOM}${RANDOM}"
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: POST /v3/networks?visibility=PUBLIC (#194 subject at home root)"
+  CERT_UP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+    -H "Content-Type: application/json" --data-binary "@${FIXTURES_DIR}/C. burnetii Network.cx2" \
+    "${BASE_URL}/v3/networks?visibility=PUBLIC")
+  CERT_UP_HTTP=$(echo "${CERT_UP}" | tail -1); CERT_UP_BODY=$(echo "${CERT_UP}" | head -1)
+  [[ "${CERT_UP_HTTP}" == "201" ]] || api_fail "#194: POST /v3/networks → HTTP ${CERT_UP_HTTP}. Body: ${CERT_UP_BODY:0:300}"
+  CERT_NET=$(echo "${CERT_UP_BODY}" | grep -o '"uuid":"[^"]*"' | head -1 | cut -d'"' -f4)
+  [[ -n "${CERT_NET}" ]] || api_fail "#194: no uuid in network create body. Body: ${CERT_UP_BODY:0:300}"
+  api_pass "POST /v3/networks → 201 Created (#194 subject ${CERT_NET})"
+
+  CERT_WAIT=0
+  until curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/networks/${CERT_NET}/summary" | grep -q '"completed":true'; do
+    CERT_WAIT=$((CERT_WAIT+2))
+    [[ ${CERT_WAIT} -ge ${LOAD_TIMEOUT} ]] && api_fail "#194: subject ${CERT_NET} did not finish loading in ${LOAD_TIMEOUT}s"
+    sleep 2
+  done
+  wait_for_task_queue_drain "the #194 network upload"
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: POST /v3/files/folders/ (#194 folder — folders carry no certification state)"
+  CERT_F_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+    -H "Content-Type: application/json" \
+    -d "{\"name\":\"${CERT_FOLDER_NAME}\",\"visibility\":\"PUBLIC\"}" \
+    "${BASE_URL}/v3/files/folders/")
+  CERT_F_HTTP=$(echo "${CERT_F_RESP}" | tail -1); CERT_F_BODY=$(echo "${CERT_F_RESP}" | head -1)
+  [[ "${CERT_F_HTTP}" == "201" ]] || api_fail "#194: create folder → HTTP ${CERT_F_HTTP}. Body: ${CERT_F_BODY:0:300}"
+  CERT_FOLDER=$(echo "${CERT_F_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1)
+  [[ -n "${CERT_FOLDER}" ]] || api_fail "#194: no uuid in folder create body. Body: ${CERT_F_BODY:0:300}"
+
+  # A freshly uploaded network is certified=false, and false must be PRESENT rather than omitted —
+  # that is what separates "not certified" from "this endpoint does not report it".
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: GET /v3/files/folders/home/list — uncertified network reports isCertified:false"
+  CERT_LIST=$(curl -s -w "\n%{http_code}" -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/home/list")
+  CERT_LIST_HTTP=$(echo "${CERT_LIST}" | tail -1); CERT_LIST_BODY=$(echo "${CERT_LIST}" | head -1)
+  [[ "${CERT_LIST_HTTP}" == "200" ]] || api_fail "#194: GET home/list → HTTP ${CERT_LIST_HTTP}. Body: ${CERT_LIST_BODY:0:300}"
+  CERT_ENTRY=$(name161_entry_for_uuid "${CERT_LIST_BODY}" "${CERT_NET}" || true)
+  [[ -n "${CERT_ENTRY}" ]] || api_fail "#194: subject ${CERT_NET} missing from home/list. Body: ${CERT_LIST_BODY:0:400}"
+  echo "${CERT_ENTRY}" | grep -qE '"isCertified"[[:space:]]*:[[:space:]]*false' \
+    || api_fail "REGRESSION (#194): an uncertified network omits isCertified in the folder listing; it must be present as false. Entry: ${CERT_ENTRY:0:400}"
+  api_pass "GET /v3/files/folders/home/list → uncertified network reports isCertified:false"
+
+  # Certify it. The DOI goes on the row too: isCertified is only meaningful next to doi, and the
+  # trash assertion below covers both columns the trash projection newly selects.
+  psql_ndex "UPDATE network SET certified = true, ndexdoi = '10.18119/ndex-it-194' WHERE \\\"UUID\\\" = '${CERT_NET}'" >/dev/null
+  CERT_DB=$(psql_ndex "SELECT certified FROM network WHERE \\\"UUID\\\" = '${CERT_NET}'")
+  [[ "${CERT_DB}" == "t" ]] || api_fail "#194: could not set certified=true on ${CERT_NET} (got '${CERT_DB}')"
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: GET /v3/files/folders/home/list — certified network reports isCertified:true, folder omits it"
+  CERT_LIST=$(curl -s -w "\n%{http_code}" -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/home/list")
+  CERT_LIST_HTTP=$(echo "${CERT_LIST}" | tail -1); CERT_LIST_BODY=$(echo "${CERT_LIST}" | head -1)
+  [[ "${CERT_LIST_HTTP}" == "200" ]] || api_fail "#194: GET home/list → HTTP ${CERT_LIST_HTTP}. Body: ${CERT_LIST_BODY:0:300}"
+  CERT_ENTRY=$(name161_entry_for_uuid "${CERT_LIST_BODY}" "${CERT_NET}" || true)
+  [[ -n "${CERT_ENTRY}" ]] || api_fail "#194: subject ${CERT_NET} missing from home/list. Body: ${CERT_LIST_BODY:0:400}"
+  echo "${CERT_ENTRY}" | grep -qE '"isCertified"[[:space:]]*:[[:space:]]*true' \
+    || api_fail "#194: certified network does not report isCertified:true in the folder listing. Entry: ${CERT_ENTRY:0:400}"
+  echo "${CERT_ENTRY}" | grep -qE '"doi"[[:space:]]*:[[:space:]]*"10\.18119/ndex-it-194"' \
+    || api_fail "#194: certified network lost its doi in the folder listing; isCertified cannot be read without it. Entry: ${CERT_ENTRY:0:400}"
+  # Same response, so the folder cannot be omitting the key just because the endpoint stopped emitting it.
+  CERT_F_ENTRY=$(name161_entry_for_uuid "${CERT_LIST_BODY}" "${CERT_FOLDER}" || true)
+  [[ -n "${CERT_F_ENTRY}" ]] || api_fail "#194: folder ${CERT_FOLDER} missing from home/list. Body: ${CERT_LIST_BODY:0:400}"
+  echo "${CERT_F_ENTRY}" | grep -q '"isCertified"' \
+    && api_fail "#194: a FOLDER entry emitted isCertified; folders have no certification state and must omit the key. Entry: ${CERT_F_ENTRY:0:400}"
+  api_pass "GET /v3/files/folders/home/list → certified network reports isCertified:true with its doi; FOLDER entry omits the key"
+
+  # A NULL column is what a row predating the certified column looks like. It must read as false
+  # rather than dropping the key, so that "absent" keeps meaning "not a network".
+  psql_ndex "UPDATE network SET certified = NULL WHERE \\\"UUID\\\" = '${CERT_NET}'" >/dev/null
+  CERT_DB=$(psql_ndex "SELECT COALESCE(certified::text,'NULL') FROM network WHERE \\\"UUID\\\" = '${CERT_NET}'")
+  [[ "${CERT_DB}" == "NULL" ]] || api_fail "#194: could not set certified=NULL on ${CERT_NET} (got '${CERT_DB}')"
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: GET /v3/files/folders/home/list — a NULL certified column reads as false"
+  CERT_LIST_BODY=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/home/list")
+  CERT_ENTRY=$(name161_entry_for_uuid "${CERT_LIST_BODY}" "${CERT_NET}" || true)
+  [[ -n "${CERT_ENTRY}" ]] || api_fail "#194: subject ${CERT_NET} missing from home/list. Body: ${CERT_LIST_BODY:0:400}"
+  echo "${CERT_ENTRY}" | grep -qE '"isCertified"[[:space:]]*:[[:space:]]*false' \
+    || api_fail "REGRESSION (#194): a NULL certified column made isCertified disappear; it must read as false. Entry: ${CERT_ENTRY:0:400}"
+  api_pass "GET /v3/files/folders/home/list → NULL certified column reports isCertified:false"
+
+  psql_ndex "UPDATE network SET certified = true WHERE \\\"UUID\\\" = '${CERT_NET}'" >/dev/null
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: GET /v3/users/{userid}/home (anonymous) — isCertified:true"
+  CERT_OWNER_ID=$(curl -s "${BASE_URL}/v2/user?username=${TEST_USER}" \
+    | grep -oiE '"externalId"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1 || true)
+  [[ -n "${CERT_OWNER_ID}" ]] || api_fail "#194: could not resolve ${TEST_USER} UUID"
+  CERT_ANON_BODY=$(curl -s "${BASE_URL}/v3/users/${CERT_OWNER_ID}/home")
+  CERT_ENTRY=$(name161_entry_for_uuid "${CERT_ANON_BODY}" "${CERT_NET}" || true)
+  [[ -n "${CERT_ENTRY}" ]] || api_fail "#194: subject missing from the anonymous home listing (it is PUBLIC and at home root). Body: ${CERT_ANON_BODY:0:400}"
+  echo "${CERT_ENTRY}" | grep -qE '"isCertified"[[:space:]]*:[[:space:]]*true' \
+    || api_fail "#194: anonymous home listing does not report isCertified:true. Entry: ${CERT_ENTRY:0:400}"
+  api_pass "GET /v3/users/{userid}/home (anonymous) → isCertified:true"
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: POST /v3/files/sharing/members — grant ${TEST_USER2} READ on the certified network"
+  CERT_U2_ID=$(curl -s "${BASE_URL}/v2/user?username=${TEST_USER2}" \
+    | grep -oiE '"externalId"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1 || true)
+  [[ -n "${CERT_U2_ID}" ]] || api_fail "#194: could not resolve ${TEST_USER2} UUID"
+  CERT_GRANT_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+    -H "Content-Type: application/json" \
+    -d "{\"files\":{\"${CERT_NET}\":\"NETWORK\"},\"members\":{\"${CERT_U2_ID}\":\"READ\"}}" \
+    "${BASE_URL}/v3/files/sharing/members")
+  [[ "${CERT_GRANT_HTTP}" == "200" || "${CERT_GRANT_HTTP}" == "204" ]] \
+    || api_fail "#194: sharing grant → HTTP ${CERT_GRANT_HTTP}"
+  api_pass "granted ${TEST_USER2} READ on the certified network"
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: GET /v3/files/sharing/list (${TEST_USER2}) — isCertified:true"
+  CERT_SHARED_BODY=$(curl -s -u "${TEST_USER2}:${TEST_PASS2}" "${BASE_URL}/v3/files/sharing/list")
+  CERT_ENTRY=$(name161_entry_for_uuid "${CERT_SHARED_BODY}" "${CERT_NET}" || true)
+  [[ -n "${CERT_ENTRY}" ]] || api_fail "#194: subject missing from shared-with-me. Body: ${CERT_SHARED_BODY:0:400}"
+  echo "${CERT_ENTRY}" | grep -qE '"isCertified"[[:space:]]*:[[:space:]]*true' \
+    || api_fail "#194: shared-with-me listing does not report isCertified:true. Entry: ${CERT_ENTRY:0:400}"
+  api_pass "GET /v3/files/sharing/list → isCertified:true"
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: GET /v3/users/{userid}/home as ${TEST_USER2} — isCertified:true"
+  CERT_U2_HOME=$(curl -s -u "${TEST_USER2}:${TEST_PASS2}" "${BASE_URL}/v3/users/${CERT_OWNER_ID}/home")
+  CERT_ENTRY=$(name161_entry_for_uuid "${CERT_U2_HOME}" "${CERT_NET}" || true)
+  [[ -n "${CERT_ENTRY}" ]] || api_fail "#194: subject missing from another user's view of the owner's home. Body: ${CERT_U2_HOME:0:400}"
+  echo "${CERT_ENTRY}" | grep -qE '"isCertified"[[:space:]]*:[[:space:]]*true' \
+    || api_fail "#194: signed-in non-owner home listing does not report isCertified:true. Entry: ${CERT_ENTRY:0:400}"
+  api_pass "GET /v3/users/{userid}/home (signed-in non-owner) → isCertified:true"
+
+  # Search maps from the v2 NetworkSummary rather than the DAO listings, and keeps a legacy
+  # attributes.isCertified copy, so both the top-level field and the alias are asserted.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: POST /v3/search/files — isCertified:true at top level and in attributes"
+  poll_files_until_present "PUBLIC" "burnetii" "${CERT_NET}" "#194 subject indexing"
+  CERT_SEARCH=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+    -H "Content-Type: application/json" -d '{"searchString":"burnetii"}' \
+    "${BASE_URL}/v3/search/files?visibility=PUBLIC&start=0&size=25")
+  CERT_SEARCH_HTTP=$(echo "${CERT_SEARCH}" | tail -1); CERT_SEARCH_BODY=$(echo "${CERT_SEARCH}" | head -1)
+  [[ "${CERT_SEARCH_HTTP}" == "200" ]] || api_fail "#194: search → HTTP ${CERT_SEARCH_HTTP}. Body: ${CERT_SEARCH_BODY:0:300}"
+  CERT_ENTRY=$(name161_entry_for_uuid "${CERT_SEARCH_BODY}" "${CERT_NET}" || true)
+  [[ -n "${CERT_ENTRY}" ]] || api_fail "#194: subject missing from its own search results. Body: ${CERT_SEARCH_BODY:0:400}"
+  # Two occurrences: the top-level field and the legacy attributes alias, which must not diverge.
+  CERT_HITS=$(echo "${CERT_ENTRY}" | grep -oE '"isCertified"[[:space:]]*:[[:space:]]*true' | wc -l | tr -d ' ' || true)
+  [[ "${CERT_HITS}" == "2" ]] \
+    || api_fail "#194: search result must carry isCertified:true both at the top level and in attributes, found ${CERT_HITS}. Entry: ${CERT_ENTRY:0:500}"
+  api_pass "POST /v3/search/files → isCertified:true at top level and in attributes"
+
+  # Trash last: it removes the network from every other listing. The trash projection did not select
+  # certified or ndexdoi before this change, so trashed networks were the one network-bearing listing
+  # that omitted them.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: DELETE /v3/networks/{networkid} then GET /v3/files/trash — isCertified:true and doi reported"
+  CERT_DEL_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE -u "${TEST_USER}:${TEST_PASS}" \
+    "${BASE_URL}/v3/networks/${CERT_NET}")
+  [[ "${CERT_DEL_HTTP}" == "200" || "${CERT_DEL_HTTP}" == "204" ]] \
+    || api_fail "#194: soft delete → HTTP ${CERT_DEL_HTTP}"
+  CERT_TRASH_BODY=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/trash")
+  CERT_ENTRY=$(name161_entry_for_uuid "${CERT_TRASH_BODY}" "${CERT_NET}" || true)
+  [[ -n "${CERT_ENTRY}" ]] || api_fail "#194: subject missing from /v3/files/trash after a soft delete. Body: ${CERT_TRASH_BODY:0:400}"
+  echo "${CERT_ENTRY}" | grep -qE '"isCertified"[[:space:]]*:[[:space:]]*true' \
+    || api_fail "REGRESSION (#194): trash listing omits isCertified; every type=NETWORK entry must report it. Entry: ${CERT_ENTRY:0:400}"
+  echo "${CERT_ENTRY}" | grep -qE '"doi"[[:space:]]*:[[:space:]]*"10\.18119/ndex-it-194"' \
+    || api_fail "REGRESSION (#194): trash listing omits doi; isCertified cannot be interpreted without it. Entry: ${CERT_ENTRY:0:400}"
+  api_pass "GET /v3/files/trash → trashed network reports isCertified:true and its doi"
+fi
+
 # ── STEP: /v2/networkset round-trip on the folder-backed compatibility layer ──
 # The network set feature is retired as storage but preserved as an API: a network set id IS a folder
 # id, and every /v2/networkset endpoint performs folder/shortcut operations internally. So this step

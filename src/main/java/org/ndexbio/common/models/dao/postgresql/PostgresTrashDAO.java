@@ -96,7 +96,8 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
 
         // 2) Networks
         String networkSql =
-            "SELECT \"UUID\", name, modification_time, updated_by, description, edgecount, visibility FROM network " +
+            "SELECT \"UUID\", name, modification_time, updated_by, description, edgecount, visibility, " +
+            "ndexdoi, certified FROM network " +
             "WHERE owneruuid=? AND is_deleted=true AND show_in_trash = true";
         try (PreparedStatement pst = db.prepareStatement(networkSql)) {
             pst.setObject(1, ownerId);
@@ -104,13 +105,19 @@ public class PostgresTrashDAO extends NdexDBDAO implements TrashDAO {
                 while (rs.next()) {
                     Map<String, Object> attr = null;
                     attr = new HashMap<>();
-                    attr.put("description", rs.getString(5));
+                    attr.put("description", rs.getString("description"));
                     FileItemSummary summary = new FileItemSummary(
-                        (UUID) rs.getObject(1), FileType.NETWORK,
-                        rs.getString(2), rs.getTimestamp(3), rs.getString(4),
+                        (UUID) rs.getObject("UUID"), FileType.NETWORK,
+                        rs.getString("name"), rs.getTimestamp("modification_time"),
+                        rs.getString("updated_by"),
                         attr);
-                    summary.setEdges((Integer) rs.getObject(6));
-                    summary.setVisibility(rs.getString(7));
+                    summary.setEdges((Integer) rs.getObject("edgecount"));
+                    summary.setVisibility(rs.getString("visibility"));
+                    // Trashed networks report certification like every other listing. doi comes
+                    // along because isCertified carries no meaning without it: no doi means
+                    // certification is not applicable, not that the network failed to certify.
+                    summary.setDoi(rs.getString("ndexdoi"));
+                    summary.setIsCertified(rs.getBoolean("certified"));
                     results.add(summary);
                 }
             }
