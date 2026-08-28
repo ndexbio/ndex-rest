@@ -1984,6 +1984,25 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
     
     }
     
+    /**
+     * Reads the current error message on a network, so a caller can decide whether its own error
+     * should replace what is already recorded there. Returns null when no error is set.
+     *
+     * @param networkId
+     */
+    public String getErrorMessage(UUID networkId) throws SQLException {
+    	String sql = "select error from network where \"UUID\" = ? and is_deleted=false";
+
+    	try ( PreparedStatement pst = db.prepareStatement(sql)) {
+    		pst.setObject(1, networkId);
+    		try (ResultSet rs = pst.executeQuery()) {
+    			if (rs.next())
+    				return rs.getString(1);
+    		}
+    	}
+    	return null;
+    }
+
     public void setWarning(UUID networkId, List<String> warnings) throws SQLException, NdexException {
     	String sqlStr = "update network set  warnings = ? where \"UUID\" = ? and is_deleted = false";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
