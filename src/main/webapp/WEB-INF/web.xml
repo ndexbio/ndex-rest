@@ -87,6 +87,14 @@
 		  <param-value>true</param-value>
 		</init-param>
         <load-on-startup>1</load-on-startup>
+        <!-- Allow unlimited multipart/form-data uploads (e.g. POST /v3/networks with CX2 data).
+             Without this element Tomcat may enforce its default maxPostSize (2 MB) on
+             multipart requests, causing HTTP 413 for large network uploads. -->
+        <multipart-config>
+            <max-file-size>-1</max-file-size>
+            <max-request-size>-1</max-request-size>
+            <file-size-threshold>1048576</file-size-threshold>
+        </multipart-config>
     </servlet>
 
     <servlet-mapping>
