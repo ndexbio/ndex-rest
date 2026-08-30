@@ -5,9 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.0.6] - pending
+## [3.0.6] - 2026-08-28
 
 ### Added
+
+- **`GET /v3/files/folders/{folderid}/count` accepts the `"home"` folder literal.** Passing `home` in
+place of a UUID returns the counts of the signed-in user's top-level networks, folders and shortcuts —
+the items with no parent folder. The caller must be authenticated; an anonymous request is rejected with
+a 401. This matches the `"home"` support the `/list` endpoint already had, so a client rendering a home
+page no longer has to special-case the count call. [#178](https://github.com/ndexbio/ndex-rest/pull/178)
 
 - **`isCertified` on file listings** — network entries from `GET /v3/files/folders/{folderid}/list`, `GET /v3/users/{userid}/home`, `GET /v3/files/sharing/list` ("shared with me"), `GET /v3/files/trash`, `GET /v2/user/{userid}/showcase`, the MCP `get_folder` tool, and `POST /v3/search/files` now report `isCertified` alongside the existing `doi`. Further details in [ndex-object-model/60](https://github.com/ndexbio/ndex-object-model/pull/60). [#195](https://github.com/ndexbio/ndex-rest/pull/195)
   - **How to read it — `isCertified` is only meaningful together with `doi`:**
@@ -39,7 +45,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`POST /v3/networks` no longer rejects large network uploads with HTTP 413.** Tomcat applies its
+default 2 MB `maxPostSize` to `multipart/form-data` requests when the servlet declares no
+`<multipart-config>`, so uploading a CX2 network above that size failed outright with *413 Payload Too
+Large* before any of the service code ran. `web.xml` now declares the REST servlet's multipart limits
+explicitly as unlimited (`max-file-size` and `max-request-size` of `-1`, with a 1 MB
+`file-size-threshold` so larger parts spill to disk rather than being buffered in memory). Network size
+is now bounded only by the account's disk quota, as intended. [#180](https://github.com/ndexbio/ndex-rest/pull/180)
+
 - Swagger documentation for `GET`, `DELETE`, `PUT /v3/files/folders/{folderid}` and `GET /v3/files/folders/{folderid}/accesskey` now explicitly states that these endpoints do not support the `"home"` folder literal and require a valid UUID. [#176](https://github.com/ndexbio/ndex-rest/issues/176)
+
+- Swagger documentation for `POST /v3/files/copy` now states that omitting `targetId` (or setting it to
+`null`) copies the network or shortcut into the caller's home directory, and moves the "copying folders
+is not supported" note into the 500 response list where that condition is actually reported. [#179](https://github.com/ndexbio/ndex-rest/pull/179)
 
 - **Certifying a network no longer leaves it stuck at `completed:false`.** `PUT /v2/network/{networkid}/reference` queues a reindex that added the network's `name` twice — once from the summary and again from the CX `networkAttributes` aspect — which the `-nfs` cores reject because `name` is not multi-valued. The duplicate is gone, and a Solr rejection is now recorded as an index error instead of escaping the task uncaught and leaving no diagnostic. [#197](https://github.com/ndexbio/ndex-rest/issues/197)
 
@@ -64,7 +82,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - That method also read its result set **positionally**, with indices that shifted on the `compact`
   flag; it now reads by column label like its siblings.
 
-- **A failed Solr index no longer erases the reason a network failed to load.**
+- **A failed Solr index no longer erases the reason a network failed to load.** [#196](https://github.com/ndexbio/ndex-rest/pull/196)
   - Reindexing a network read `aspects_cx2/attributeDeclarations` after checking only that
     `aspects_cx2/networkAttributes` existed. A network whose CX2 failed validation has the first file
     and not the second — the loader throws before writing it — so the read failed with
