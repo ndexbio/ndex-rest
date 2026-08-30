@@ -5,6 +5,94 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.6] - 2026-08-28
+
+### Added
+
+- **`GET /v3/files/folders/{folderid}/count` accepts the `"home"` folder literal.** Passing `home` in
+place of a UUID returns the counts of the signed-in user's top-level networks, folders and shortcuts —
+the items with no parent folder. The caller must be authenticated; an anonymous request is rejected with
+a 401. This matches the `"home"` support the `/list` endpoint already had, so a client rendering a home
+page no longer has to special-case the count call. [#178](https://github.com/ndexbio/ndex-rest/pull/178)
+
+- **`isCertified` on file listings** — network entries from `GET /v3/files/folders/{folderid}/list`, `GET /v3/users/{userid}/home`, `GET /v3/files/sharing/list` ("shared with me"), `GET /v3/files/trash`, `GET /v2/user/{userid}/showcase`, the MCP `get_folder` tool, and `POST /v3/search/files` now report `isCertified` alongside the existing `doi`. Further details in [ndex-object-model/60](https://github.com/ndexbio/ndex-object-model/pull/60). [#195](https://github.com/ndexbio/ndex-rest/pull/195)
+  - **How to read it — `isCertified` is only meaningful together with `doi`:**
+    - `doi` **absent** → certification is **not applicable**. `isCertified` reports `false`; ignore it.
+    - `doi` **present** and `isCertified` **`false`** → **pre-certified**. The network still accepts a
+    reference via `PUT /v2/network/{networkid}/reference`, which certifies it.
+    - `isCertified` **`true`** → **certified**. Locked; the reference can no longer be set.
+
+    `doi` may be the sentinel `"Pending"` while a mint is in flight, so a present `doi` does not imply
+    a resolvable DOI — the pre-certified test above holds for both `"Pending"` and a minted DOI.
+  - The `ndex-object-model` dependency advances 3.0.3 → 3.0.6, which is what carries the new field.
+  - **Why it is needed:** `doi` alone cannot distinguish a *pre-certified* network from a certified
+  one. A DOI requested with `isCertified=false` leaves the network locked but still able to receive
+  its reference via `PUT /v2/network/{networkid}/reference`, and a DOI may be minted before that
+  happens — so a network can carry a real DOI while `certified` is still false. A client asking "can
+  this network still take a reference?" previously had to fetch the full network summary for every
+  row in a listing.
+  - **The value is always present for `type=NETWORK`**, as `true` or `false`. It is absent only for
+  `type=FOLDER` and `type=SHORTCUT`, which have no certification state, and on servers older than
+  3.0.6, which do not report it at all. Absence therefore means *not applicable*, never *unknown* —
+  use `doi` per the rule above to tell "not applicable" from "not yet certified".
+  - `POST /v3/search/files` keeps its existing `attributes.isCertified` copy, so consumers of that
+  key continue to work. It is now a deprecated alias of the top-level field and always carries the
+  same value.
+  - `GET /v3/files/trash` also begins reporting `doi`, which it never did before; without it the
+  reading rule above could not be applied to trashed networks.
+  - No database migration is required; the `certified` column already existed and was simply not
+  selected.
+
+### Fixed
+
+- **`POST /v3/networks` no longer rejects large network uploads with HTTP 413.** Tomcat applies its
+default 2 MB `maxPostSize` to `multipart/form-data` requests when the servlet declares no
+`<multipart-config>`, so uploading a CX2 network above that size failed outright with *413 Payload Too
+Large* before any of the service code ran. `web.xml` now declares the REST servlet's multipart limits
+explicitly as unlimited (`max-file-size` and `max-request-size` of `-1`, with a 1 MB
+`file-size-threshold` so larger parts spill to disk rather than being buffered in memory). Network size
+is now bounded only by the account's disk quota, as intended. [#180](https://github.com/ndexbio/ndex-rest/pull/180)
+
+- Swagger documentation for `GET`, `DELETE`, `PUT /v3/files/folders/{folderid}` and `GET /v3/files/folders/{folderid}/accesskey` now explicitly states that these endpoints do not support the `"home"` folder literal and require a valid UUID. [#176](https://github.com/ndexbio/ndex-rest/issues/176)
+
+- Swagger documentation for `POST /v3/files/copy` now states that omitting `targetId` (or setting it to
+`null`) copies the network or shortcut into the caller's home directory, and moves the "copying folders
+is not supported" note into the 500 response list where that condition is actually reported. [#179](https://github.com/ndexbio/ndex-rest/pull/179)
+
+- **Certifying a network no longer leaves it stuck at `completed:false`.** `PUT /v2/network/{networkid}/reference` queues a reindex that added the network's `name` twice — once from the summary and again from the CX `networkAttributes` aspect — which the `-nfs` cores reject because `name` is not multi-valued. The duplicate is gone, and a Solr rejection is now recorded as an index error instead of escaping the task uncaught and leaving no diagnostic. [#197](https://github.com/ndexbio/ndex-rest/issues/197)
+
+- **`POST /v3/batch/files/setvisibility` let an owner change the visibility of a network with a DOI.** [#195](https://github.com/ndexbio/ndex-rest/pull/195)
+  - `PUT /v2/network/{networkid}/systemproperty` has always refused this, but the v3 files path reaches
+  the same field through a different handler that checked ownership only. ndex3 and other v3 clients use
+  that path, so the restriction was effectively unenforced.
+  - **Why it matters:** a DOI's target URL is registered with EZID once, at mint time, and is never
+  updated. A certified network is minted PUBLIC and therefore carries no access key in that URL, so
+  making it PRIVATE afterwards leaves the published DOI resolving to a network readers cannot open,
+  with no way to repair it.
+  - The guard keys off `hasDOI`, matching the v2 endpoint, so a network left read-only by a failed mint
+  is frozen too. Cancelling the DOI request clears the DOI and releases the restriction.
+
+- **`GET /v3/users/{userid}/home` returned different fields depending on who was asking.** [#195](https://github.com/ndexbio/ndex-rest/pull/195)
+  - A signed-in user viewing **someone else's** page received network entries with no `isReadOnly`,
+  `errorMessage`, `warnings`, `isCompleted`, `isValid`, `doi` or `isCertified` — strictly less than
+  an **anonymous** visitor to the same page received. Client apps therefore dropped DOI badges,
+  read-only indicators and validation warnings for signed-in viewers only.
+  - `listNetworksSharedBySpecificUser` now selects the same status columns as the owner and anonymous
+  branches, so all three return the same shape.
+  - That method also read its result set **positionally**, with indices that shifted on the `compact`
+  flag; it now reads by column label like its siblings.
+
+- **A failed Solr index no longer erases the reason a network failed to load.** [#196](https://github.com/ndexbio/ndex-rest/pull/196)
+  - Reindexing a network read `aspects_cx2/attributeDeclarations` after checking only that
+    `aspects_cx2/networkAttributes` existed. A network whose CX2 failed validation has the first file
+    and not the second — the loader throws before writing it — so the read failed with
+    `FileNotFoundException`, and the handler wrote `"Failed to create Index on network. Cause: ..."`
+    over the CX2 validation message that was the only record of what was actually wrong.
+  - An index failure is now recorded only when the network carries no error or already carries an
+    index error. The same precedence
+    `SolrTaskRebuildNetworkIdx` and `NFSReIndexer` apply when clearing an index error.
+
+
 ## [3.0.5] - 2026-08-17
 
 ### Fixed

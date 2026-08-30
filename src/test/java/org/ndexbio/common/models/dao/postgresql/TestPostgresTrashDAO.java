@@ -167,4 +167,36 @@ public class TestPostgresTrashDAO {
     public void testShortcutRestoreWithoutWriteRelocatesToHome() throws SQLException {
         assertTrue(movedToHome(runRestore(true, Permissions.READ, shortcutRequest(), true)));
     }
+
+
+    // ── trashed networks report certification like every other listing ────────
+    //
+    // listTrashedItemsOfUser was the one network-bearing listing whose projection never selected
+    // certified, so trashed networks silently omitted isCertified while every other listing reported
+    // it. Now that the mapper reads the column with a plain rs.getBoolean, dropping it again would
+    // report "not certified" for every trashed network instead of failing, so the select list is what
+    // has to be pinned. doi is asserted alongside because isCertified carries no meaning without it.
+    @Test
+    public void testTrashListingSqlSelectsCertifiedAndDoi() throws SQLException {
+        Connection conn = createMock(Connection.class);
+
+        Capture<String> sql = newCapture(CaptureType.ALL);
+        for (int i = 0; i < 3; i++) {  // folders, networks, shortcuts
+            PreparedStatement pst = createNiceMock(PreparedStatement.class);
+            ResultSet rs = createNiceMock(ResultSet.class);
+            expect(rs.next()).andReturn(false).anyTimes();
+            expect(pst.executeQuery()).andReturn(rs).anyTimes();
+            replay(pst, rs);
+            expect(conn.prepareStatement(capture(sql))).andReturn(pst);
+        }
+        replay(conn);
+
+        new PostgresTrashDAO(conn).listTrashedItemsOfUser(USER);
+
+        String networkSql = sql.getValues().get(1);  // folders, networks, shortcuts
+        assertTrue("trash listing must select certified, or trashed networks report isCertified=false",
+                networkSql.contains("certified"));
+        assertTrue("trash listing must select ndexdoi — isCertified is meaningless without it",
+                networkSql.contains("ndexdoi"));
+    }
 }

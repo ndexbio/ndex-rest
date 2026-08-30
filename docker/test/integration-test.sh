@@ -195,6 +195,21 @@ psql_ndex() {
   " 2>/dev/null | tr -d '[:space:]'
 }
 
+# Block until no system task is in flight, so a DB row a test is about to assert on has stopped
+# moving. Solr indexing is queued asynchronously and several of its failure handlers write to
+# network.error, so any assertion on that column has to be made against a settled row rather than
+# against whichever write happened to land first. Args: label (used in the timeout message)
+wait_for_task_queue_drain() {
+  local label="$1"
+  local elapsed=0
+  until [[ "$(psql_ndex "SELECT count(*) FROM core.task WHERE status IN ('QUEUED','PROCESSING')")" == "0" ]]; do
+    [[ ${elapsed} -ge ${LOAD_TIMEOUT} ]] \
+      && api_fail "background tasks still pending ${LOAD_TIMEOUT}s after ${label}; the assertion that follows would be racing them"
+    echo -e "  ${CYAN}Waiting for background tasks to drain (${label})... (${elapsed}s)${NC}"
+    sleep 2; elapsed=$((elapsed + 2))
+  done
+}
+
 # ── Cleanup trap ──────────────────────────────────────────────────────────────
 
 _remove_test_containers() {
@@ -514,6 +529,64 @@ for i in "${!V3_UUIDS[@]}"; do
     api_fail "GET /v3/networks/${UUID} → HTTP ${V3_HTTP} (expected 200)"
   fi
 done
+
+# ── STEP: Large multipart/form-data upload (regression for HTTP 413) ─────────
+#
+# Reproduces the scenario from issue #152: a CX2 network larger than Tomcat's
+# default maxPostSize (2 MB) must be accepted when uploaded as multipart/form-data
+# via POST /v3/networks.  The fix is <multipart-config> in web.xml; without it
+# Tomcat rejects the request with HTTP 413.
+#
+# The fixture large-upload-test.cx2 (~2.7 MB) is intentionally larger than the
+# default 2 MB limit so this test would fail on an unfixed server.
+
+LARGE_FIXTURE="${FIXTURES_DIR}/large/large-upload-test.cx2"
+
+step "Large multipart upload regression: POST /v3/networks (multipart/form-data, ~2.7 MB)"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: POST /v3/networks (multipart, $(wc -c < "${LARGE_FIXTURE}") bytes)"
+
+LARGE_UPLOAD_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+  -u "${TEST_USER}:${TEST_PASS}" \
+  -F "CXNetworkStream=@${LARGE_FIXTURE};type=application/json" \
+  "${BASE_URL}/v3/networks?visibility=PUBLIC")
+LARGE_UPLOAD_HTTP=$(echo "${LARGE_UPLOAD_RESPONSE}" | tail -1)
+LARGE_UPLOAD_BODY=$(echo "${LARGE_UPLOAD_RESPONSE}" | head -1)
+
+if [[ "${LARGE_UPLOAD_HTTP}" == "201" ]]; then
+  LARGE_UUID=$(echo "${LARGE_UPLOAD_BODY}" | grep -o '"uuid":"[^"]*"' | head -1 | cut -d'"' -f4)
+  api_pass "POST /v3/networks (multipart ~2.7 MB) → 201 Created (UUID: ${LARGE_UUID})"
+else
+  api_fail "POST /v3/networks (multipart ~2.7 MB) → HTTP ${LARGE_UPLOAD_HTTP} (expected 201, regression for HTTP 413). Body: ${LARGE_UPLOAD_BODY:0:300}"
+fi
+
+echo "  Polling GET /v3/networks/${LARGE_UUID}/summary until completed:true..."
+ELAPSED=0
+while true; do
+  SUMMARY_BODY=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/networks/${LARGE_UUID}/summary")
+  if echo "${SUMMARY_BODY}" | grep -q '"completed":true'; then
+    echo "  large upload network ${LARGE_UUID} — completed"
+    break
+  fi
+  if [[ ${ELAPSED} -ge ${LOAD_TIMEOUT} ]]; then
+    api_fail "large upload network ${LARGE_UUID} did not complete within ${LOAD_TIMEOUT}s. Last: ${SUMMARY_BODY:0:300}"
+  fi
+  echo -e "  ${CYAN}Waiting for large upload network... (${ELAPSED}s)${NC}"
+  sleep 5
+  ELAPSED=$((ELAPSED + 5))
+done
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: GET /v3/networks/${LARGE_UUID}"
+LARGE_GET_HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
+  -u "${TEST_USER}:${TEST_PASS}" \
+  "${BASE_URL}/v3/networks/${LARGE_UUID}")
+if [[ "${LARGE_GET_HTTP}" == "200" ]]; then
+  api_pass "GET /v3/networks/${LARGE_UUID} → 200 OK (large multipart-uploaded network retrieved)"
+else
+  api_fail "GET /v3/networks/${LARGE_UUID} → HTTP ${LARGE_GET_HTTP} (expected 200)"
+fi
 
 # ── STEP: Private network — anonymous access denied ──────────────────────────
 
@@ -1149,22 +1222,10 @@ while true; do
   sleep 5; NAME161_ELAPSED=$((NAME161_ELAPSED + 5))
 done
 
-# completed:true is not the end of the story. It is set by the load-failure path, but a Solr index
-# task for this network can still be queued, and its failure handler calls setErrorMessage — which
-# OVERWRITES the validation message this step asserts on with "Failed to create Index on network...".
-# Waiting only on completed therefore samples a row that is still moving, and the assertion below
-# passes or fails on machine speed. Drain the async queue so the row has stopped changing.
-#
-# Deliberately NOT a poll for "the message looks right": that would also hide a genuine regression in
-# which the index error legitimately wins and the validation message is lost. This waits for the
-# settled state and then asserts on whatever it actually is.
-NAME161_ELAPSED=0
-until [[ "$(psql_ndex "SELECT count(*) FROM core.task WHERE status IN ('QUEUED','PROCESSING')")" == "0" ]]; do
-  [[ ${NAME161_ELAPSED} -ge ${LOAD_TIMEOUT} ]] \
-    && api_fail "background tasks still pending ${LOAD_TIMEOUT}s after the invalid network completed; the errorMessage assertion below would be racing them"
-  echo -e "  ${CYAN}Waiting for background tasks to drain before asserting... (${NAME161_ELAPSED}s)${NC}"
-  sleep 2; NAME161_ELAPSED=$((NAME161_ELAPSED + 2))
-done
+# completed:true is not the end of the story: the load-failure path sets it before the load task
+# itself is marked done. Settle the queue here so the row has stopped moving before the step
+# continues.
+wait_for_task_queue_drain "the invalid network completed"
 echo "  invalid network ${NAME161_UUID} — completed (load failed as intended), queue drained"
 
 CALL_NUM=$((CALL_NUM+1))
@@ -1195,6 +1256,18 @@ NAME161_MOVE_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
 [[ "${NAME161_MOVE_HTTP}" == "200" || "${NAME161_MOVE_HTTP}" == "204" ]] \
   || api_fail "POST /v3/batch/networks/move (#161) → HTTP ${NAME161_MOVE_HTTP}"
 api_pass "Moved invalid (${NAME161_UUID}) + valid (${V3_PUB_UUID}) networks into #161 folder"
+
+# The move is what actually endangers the assertion below. POST /v3/batch/networks/move reindexes
+# each moved network (BatchService.moveNetworksToFolder -> createFileIndex), queuing an async
+# SolrTaskRebuildFileIdx whose failure handler writes to network.error. Read the listing before that
+# task lands and the step passes; read it after and it sees whatever the index task left behind. So
+# drain again HERE, after the move, not just after the load.
+#
+# Deliberately NOT a poll for "the message looks right": that would also hide a genuine regression in
+# which the index error wins and the validation message is lost. This waits for the settled state and
+# then asserts on whatever it actually is — which is what makes the assertion below a regression test
+# for the error-precedence rule in SolrTaskRebuildFileIdx rather than a coin flip.
+wait_for_task_queue_drain "the #161 batch move"
 
 # The invalid load forces the network PRIVATE, so the listing must be read as the owner — an
 # anonymous caller would get an empty list and the "no name" assertion would pass vacuously.
@@ -1746,6 +1819,214 @@ echo "${F162_PRIV_BODY}" | grep -qE '"visibility"[[:space:]]*:[[:space:]]*"PRIVA
   || api_fail "REGRESSION (issue #162): PRIVATE FOLDER item in /v3/search/files results does not report visibility=PRIVATE. Body: ${F162_PRIV_BODY:0:600}"
 api_pass "search visibility=PRIVATE → FOLDER item reports visibility=PRIVATE"
 
+# ── STEP: isCertified is reported on file listings (#194) ────────────────────
+# Network entries in the v3 file listings now carry isCertified alongside doi, so a client can tell
+# a certified network from a "pre-certified" one (DOI minted, reference not yet added) without
+# fetching a full summary per row. Five DAO mappers produce those entries and each is reached by a
+# different caller, so each needs its own call: listItemsInFolderOrHome (folder /list),
+# listPublicRootItemsOfUser (anonymous home), listSharedNetworks (shared-with-me),
+# listNetworksSharedBySpecificUser (another user's home) and listTrashedItemsOfUser (trash), plus
+# NFSSearchProvider for search — which also keeps a legacy attributes.isCertified copy.
+#
+# The value is always present for type=NETWORK and absent only for FOLDER/SHORTCUT, which have no
+# certification state, so the folder assertion below is what gives "absent" its meaning.
+#
+# The network stays at home root: the home listings select parent IS NULL, so a network moved into a
+# folder would never appear in them and those assertions would pass vacuously. certified and ndexdoi
+# are set with psql because the only API that certifies a network is the DOI mint, which needs an
+# EZID service this container does not run.
+if [[ -z "${REMOTE_NDEX_URL}" ]]; then
+  step "isCertified is reported on file listings (#194)"
+
+  CERT_FOLDER_NAME="certfolder194${RANDOM}${RANDOM}"
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: POST /v3/networks?visibility=PUBLIC (#194 subject at home root)"
+  CERT_UP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+    -H "Content-Type: application/json" --data-binary "@${FIXTURES_DIR}/C. burnetii Network.cx2" \
+    "${BASE_URL}/v3/networks?visibility=PUBLIC")
+  CERT_UP_HTTP=$(echo "${CERT_UP}" | tail -1); CERT_UP_BODY=$(echo "${CERT_UP}" | head -1)
+  [[ "${CERT_UP_HTTP}" == "201" ]] || api_fail "#194: POST /v3/networks → HTTP ${CERT_UP_HTTP}. Body: ${CERT_UP_BODY:0:300}"
+  CERT_NET=$(echo "${CERT_UP_BODY}" | grep -o '"uuid":"[^"]*"' | head -1 | cut -d'"' -f4)
+  [[ -n "${CERT_NET}" ]] || api_fail "#194: no uuid in network create body. Body: ${CERT_UP_BODY:0:300}"
+  api_pass "POST /v3/networks → 201 Created (#194 subject ${CERT_NET})"
+
+  CERT_WAIT=0
+  until curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/networks/${CERT_NET}/summary" | grep -q '"completed":true'; do
+    CERT_WAIT=$((CERT_WAIT+2))
+    [[ ${CERT_WAIT} -ge ${LOAD_TIMEOUT} ]] && api_fail "#194: subject ${CERT_NET} did not finish loading in ${LOAD_TIMEOUT}s"
+    sleep 2
+  done
+  wait_for_task_queue_drain "the #194 network upload"
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: POST /v3/files/folders/ (#194 folder — folders carry no certification state)"
+  CERT_F_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+    -H "Content-Type: application/json" \
+    -d "{\"name\":\"${CERT_FOLDER_NAME}\",\"visibility\":\"PUBLIC\"}" \
+    "${BASE_URL}/v3/files/folders/")
+  CERT_F_HTTP=$(echo "${CERT_F_RESP}" | tail -1); CERT_F_BODY=$(echo "${CERT_F_RESP}" | head -1)
+  [[ "${CERT_F_HTTP}" == "201" ]] || api_fail "#194: create folder → HTTP ${CERT_F_HTTP}. Body: ${CERT_F_BODY:0:300}"
+  CERT_FOLDER=$(echo "${CERT_F_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1)
+  [[ -n "${CERT_FOLDER}" ]] || api_fail "#194: no uuid in folder create body. Body: ${CERT_F_BODY:0:300}"
+
+  # A freshly uploaded network is certified=false, and false must be PRESENT rather than omitted —
+  # that is what separates "not certified" from "this endpoint does not report it".
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: GET /v3/files/folders/home/list — uncertified network reports isCertified:false"
+  CERT_LIST=$(curl -s -w "\n%{http_code}" -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/home/list")
+  CERT_LIST_HTTP=$(echo "${CERT_LIST}" | tail -1); CERT_LIST_BODY=$(echo "${CERT_LIST}" | head -1)
+  [[ "${CERT_LIST_HTTP}" == "200" ]] || api_fail "#194: GET home/list → HTTP ${CERT_LIST_HTTP}. Body: ${CERT_LIST_BODY:0:300}"
+  CERT_ENTRY=$(name161_entry_for_uuid "${CERT_LIST_BODY}" "${CERT_NET}" || true)
+  [[ -n "${CERT_ENTRY}" ]] || api_fail "#194: subject ${CERT_NET} missing from home/list. Body: ${CERT_LIST_BODY:0:400}"
+  echo "${CERT_ENTRY}" | grep -qE '"isCertified"[[:space:]]*:[[:space:]]*false' \
+    || api_fail "REGRESSION (#194): an uncertified network omits isCertified in the folder listing; it must be present as false. Entry: ${CERT_ENTRY:0:400}"
+  api_pass "GET /v3/files/folders/home/list → uncertified network reports isCertified:false"
+
+  # Seed only the DOI — minting one needs an EZID service this container does not run. Certification
+  # itself goes through the real endpoint, which is what queues the reindex that #197 was about. The
+  # DOI stays on the row because isCertified is only meaningful next to doi, and the trash assertion
+  # below covers both columns the trash projection newly selects.
+  psql_ndex "UPDATE network SET ndexdoi = '10.18119/ndex-it-194' WHERE \\\"UUID\\\" = '${CERT_NET}'" >/dev/null
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: PUT /v2/network/{networkid}/reference — certifies the pre-certified network"
+  CERT_REF_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X PUT -u "${TEST_USER}:${TEST_PASS}" \
+    -H "Content-Type: application/json" -d '{"reference":"NDEx integration test reference"}' \
+    "${BASE_URL}/v2/network/${CERT_NET}/reference")
+  [[ "${CERT_REF_HTTP}" == "200" || "${CERT_REF_HTTP}" == "204" ]] \
+    || api_fail "#197: PUT /v2/network/${CERT_NET}/reference → HTTP ${CERT_REF_HTTP}"
+  CERT_DB=$(psql_ndex "SELECT certified FROM network WHERE \\\"UUID\\\" = '${CERT_NET}'")
+  [[ "${CERT_DB}" == "t" ]] || api_fail "#194: the reference endpoint did not set certified=true on ${CERT_NET} (got '${CERT_DB}')"
+  api_pass "PUT /v2/network/{networkid}/reference → certified=true"
+
+  # Certification queues a global reindex. That reindex used to throw on a duplicate name field and,
+  # because the exception was a RuntimeException that escaped the task's catch, left the network at
+  # completed:false with no error recorded and its Solr document already deleted (#197).
+  wait_for_task_queue_drain "the #197 certification reindex"
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: GET /v3/networks/{networkid}/summary — completed:true after certification"
+  CERT_SUMM=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/networks/${CERT_NET}/summary")
+  echo "${CERT_SUMM}" | grep -q '"completed":true' \
+    || api_fail "REGRESSION (#197): certified network ${CERT_NET} stuck at completed:false — the reindex queued by certification failed. Summary: ${CERT_SUMM:0:400}"
+  api_pass "GET /v3/networks/{networkid}/summary → completed:true after certification (#197)"
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: GET /v3/files/folders/home/list — certified network reports isCertified:true, folder omits it"
+  CERT_LIST=$(curl -s -w "\n%{http_code}" -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/home/list")
+  CERT_LIST_HTTP=$(echo "${CERT_LIST}" | tail -1); CERT_LIST_BODY=$(echo "${CERT_LIST}" | head -1)
+  [[ "${CERT_LIST_HTTP}" == "200" ]] || api_fail "#194: GET home/list → HTTP ${CERT_LIST_HTTP}. Body: ${CERT_LIST_BODY:0:300}"
+  CERT_ENTRY=$(name161_entry_for_uuid "${CERT_LIST_BODY}" "${CERT_NET}" || true)
+  [[ -n "${CERT_ENTRY}" ]] || api_fail "#194: subject ${CERT_NET} missing from home/list. Body: ${CERT_LIST_BODY:0:400}"
+  echo "${CERT_ENTRY}" | grep -qE '"isCertified"[[:space:]]*:[[:space:]]*true' \
+    || api_fail "#194: certified network does not report isCertified:true in the folder listing. Entry: ${CERT_ENTRY:0:400}"
+  echo "${CERT_ENTRY}" | grep -qE '"doi"[[:space:]]*:[[:space:]]*"10\.18119/ndex-it-194"' \
+    || api_fail "#194: certified network lost its doi in the folder listing; isCertified cannot be read without it. Entry: ${CERT_ENTRY:0:400}"
+  # Same response, so the folder cannot be omitting the key just because the endpoint stopped emitting it.
+  CERT_F_ENTRY=$(name161_entry_for_uuid "${CERT_LIST_BODY}" "${CERT_FOLDER}" || true)
+  [[ -n "${CERT_F_ENTRY}" ]] || api_fail "#194: folder ${CERT_FOLDER} missing from home/list. Body: ${CERT_LIST_BODY:0:400}"
+  echo "${CERT_F_ENTRY}" | grep -q '"isCertified"' \
+    && api_fail "#194: a FOLDER entry emitted isCertified; folders have no certification state and must omit the key. Entry: ${CERT_F_ENTRY:0:400}"
+  api_pass "GET /v3/files/folders/home/list → certified network reports isCertified:true with its doi; FOLDER entry omits the key"
+
+  # A NULL column is what a row predating the certified column looks like. It must read as false
+  # rather than dropping the key, so that "absent" keeps meaning "not a network".
+  psql_ndex "UPDATE network SET certified = NULL WHERE \\\"UUID\\\" = '${CERT_NET}'" >/dev/null
+  CERT_DB=$(psql_ndex "SELECT COALESCE(certified::text,'NULL') FROM network WHERE \\\"UUID\\\" = '${CERT_NET}'")
+  [[ "${CERT_DB}" == "NULL" ]] || api_fail "#194: could not set certified=NULL on ${CERT_NET} (got '${CERT_DB}')"
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: GET /v3/files/folders/home/list — a NULL certified column reads as false"
+  CERT_LIST_BODY=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/home/list")
+  CERT_ENTRY=$(name161_entry_for_uuid "${CERT_LIST_BODY}" "${CERT_NET}" || true)
+  [[ -n "${CERT_ENTRY}" ]] || api_fail "#194: subject ${CERT_NET} missing from home/list. Body: ${CERT_LIST_BODY:0:400}"
+  echo "${CERT_ENTRY}" | grep -qE '"isCertified"[[:space:]]*:[[:space:]]*false' \
+    || api_fail "REGRESSION (#194): a NULL certified column made isCertified disappear; it must read as false. Entry: ${CERT_ENTRY:0:400}"
+  api_pass "GET /v3/files/folders/home/list → NULL certified column reports isCertified:false"
+
+  psql_ndex "UPDATE network SET certified = true WHERE \\\"UUID\\\" = '${CERT_NET}'" >/dev/null
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: GET /v3/users/{userid}/home (anonymous) — isCertified:true"
+  CERT_OWNER_ID=$(curl -s "${BASE_URL}/v2/user?username=${TEST_USER}" \
+    | grep -oiE '"externalId"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1 || true)
+  [[ -n "${CERT_OWNER_ID}" ]] || api_fail "#194: could not resolve ${TEST_USER} UUID"
+  CERT_ANON_BODY=$(curl -s "${BASE_URL}/v3/users/${CERT_OWNER_ID}/home")
+  CERT_ENTRY=$(name161_entry_for_uuid "${CERT_ANON_BODY}" "${CERT_NET}" || true)
+  [[ -n "${CERT_ENTRY}" ]] || api_fail "#194: subject missing from the anonymous home listing (it is PUBLIC and at home root). Body: ${CERT_ANON_BODY:0:400}"
+  echo "${CERT_ENTRY}" | grep -qE '"isCertified"[[:space:]]*:[[:space:]]*true' \
+    || api_fail "#194: anonymous home listing does not report isCertified:true. Entry: ${CERT_ENTRY:0:400}"
+  api_pass "GET /v3/users/{userid}/home (anonymous) → isCertified:true"
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: POST /v3/files/sharing/members — grant ${TEST_USER2} READ on the certified network"
+  CERT_U2_ID=$(curl -s "${BASE_URL}/v2/user?username=${TEST_USER2}" \
+    | grep -oiE '"externalId"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oiE '[0-9a-f-]{36}' | head -1 || true)
+  [[ -n "${CERT_U2_ID}" ]] || api_fail "#194: could not resolve ${TEST_USER2} UUID"
+  CERT_GRANT_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+    -H "Content-Type: application/json" \
+    -d "{\"files\":{\"${CERT_NET}\":\"NETWORK\"},\"members\":{\"${CERT_U2_ID}\":\"READ\"}}" \
+    "${BASE_URL}/v3/files/sharing/members")
+  [[ "${CERT_GRANT_HTTP}" == "200" || "${CERT_GRANT_HTTP}" == "204" ]] \
+    || api_fail "#194: sharing grant → HTTP ${CERT_GRANT_HTTP}"
+  api_pass "granted ${TEST_USER2} READ on the certified network"
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: GET /v3/files/sharing/list (${TEST_USER2}) — isCertified:true"
+  CERT_SHARED_BODY=$(curl -s -u "${TEST_USER2}:${TEST_PASS2}" "${BASE_URL}/v3/files/sharing/list")
+  CERT_ENTRY=$(name161_entry_for_uuid "${CERT_SHARED_BODY}" "${CERT_NET}" || true)
+  [[ -n "${CERT_ENTRY}" ]] || api_fail "#194: subject missing from shared-with-me. Body: ${CERT_SHARED_BODY:0:400}"
+  echo "${CERT_ENTRY}" | grep -qE '"isCertified"[[:space:]]*:[[:space:]]*true' \
+    || api_fail "#194: shared-with-me listing does not report isCertified:true. Entry: ${CERT_ENTRY:0:400}"
+  api_pass "GET /v3/files/sharing/list → isCertified:true"
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: GET /v3/users/{userid}/home as ${TEST_USER2} — isCertified:true"
+  CERT_U2_HOME=$(curl -s -u "${TEST_USER2}:${TEST_PASS2}" "${BASE_URL}/v3/users/${CERT_OWNER_ID}/home")
+  CERT_ENTRY=$(name161_entry_for_uuid "${CERT_U2_HOME}" "${CERT_NET}" || true)
+  [[ -n "${CERT_ENTRY}" ]] || api_fail "#194: subject missing from another user's view of the owner's home. Body: ${CERT_U2_HOME:0:400}"
+  echo "${CERT_ENTRY}" | grep -qE '"isCertified"[[:space:]]*:[[:space:]]*true' \
+    || api_fail "#194: signed-in non-owner home listing does not report isCertified:true. Entry: ${CERT_ENTRY:0:400}"
+  api_pass "GET /v3/users/{userid}/home (signed-in non-owner) → isCertified:true"
+
+  # Search maps from the v2 NetworkSummary rather than the DAO listings, and keeps a legacy
+  # attributes.isCertified copy, so both the top-level field and the alias are asserted.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: POST /v3/search/files — isCertified:true at top level and in attributes"
+  poll_files_until_present "PUBLIC" "burnetii" "${CERT_NET}" "#194 subject indexing"
+  CERT_SEARCH=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+    -H "Content-Type: application/json" -d '{"searchString":"burnetii"}' \
+    "${BASE_URL}/v3/search/files?visibility=PUBLIC&start=0&size=25")
+  CERT_SEARCH_HTTP=$(echo "${CERT_SEARCH}" | tail -1); CERT_SEARCH_BODY=$(echo "${CERT_SEARCH}" | head -1)
+  [[ "${CERT_SEARCH_HTTP}" == "200" ]] || api_fail "#194: search → HTTP ${CERT_SEARCH_HTTP}. Body: ${CERT_SEARCH_BODY:0:300}"
+  CERT_ENTRY=$(name161_entry_for_uuid "${CERT_SEARCH_BODY}" "${CERT_NET}" || true)
+  [[ -n "${CERT_ENTRY}" ]] || api_fail "#194: subject missing from its own search results. Body: ${CERT_SEARCH_BODY:0:400}"
+  # Two occurrences: the top-level field and the legacy attributes alias, which must not diverge.
+  CERT_HITS=$(echo "${CERT_ENTRY}" | grep -oE '"isCertified"[[:space:]]*:[[:space:]]*true' | wc -l | tr -d ' ' || true)
+  [[ "${CERT_HITS}" == "2" ]] \
+    || api_fail "#194: search result must carry isCertified:true both at the top level and in attributes, found ${CERT_HITS}. Entry: ${CERT_ENTRY:0:500}"
+  api_pass "POST /v3/search/files → isCertified:true at top level and in attributes"
+
+  # Trash last: it removes the network from every other listing. The trash projection did not select
+  # certified or ndexdoi before this change, so trashed networks were the one network-bearing listing
+  # that omitted them.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: DELETE /v3/networks/{networkid} then GET /v3/files/trash — isCertified:true and doi reported"
+  CERT_DEL_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE -u "${TEST_USER}:${TEST_PASS}" \
+    "${BASE_URL}/v3/networks/${CERT_NET}")
+  [[ "${CERT_DEL_HTTP}" == "200" || "${CERT_DEL_HTTP}" == "204" ]] \
+    || api_fail "#194: soft delete → HTTP ${CERT_DEL_HTTP}"
+  CERT_TRASH_BODY=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/trash")
+  CERT_ENTRY=$(name161_entry_for_uuid "${CERT_TRASH_BODY}" "${CERT_NET}" || true)
+  [[ -n "${CERT_ENTRY}" ]] || api_fail "#194: subject missing from /v3/files/trash after a soft delete. Body: ${CERT_TRASH_BODY:0:400}"
+  echo "${CERT_ENTRY}" | grep -qE '"isCertified"[[:space:]]*:[[:space:]]*true' \
+    || api_fail "REGRESSION (#194): trash listing omits isCertified; every type=NETWORK entry must report it. Entry: ${CERT_ENTRY:0:400}"
+  echo "${CERT_ENTRY}" | grep -qE '"doi"[[:space:]]*:[[:space:]]*"10\.18119/ndex-it-194"' \
+    || api_fail "REGRESSION (#194): trash listing omits doi; isCertified cannot be interpreted without it. Entry: ${CERT_ENTRY:0:400}"
+  api_pass "GET /v3/files/trash → trashed network reports isCertified:true and its doi"
+fi
+
 # ── STEP: /v2/networkset round-trip on the folder-backed compatibility layer ──
 # The network set feature is retired as storage but preserved as an API: a network set id IS a folder
 # id, and every /v2/networkset endpoint performs folder/shortcut operations internally. So this step
@@ -1793,6 +2074,18 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   NS_PARENT=$(psql_ndex "SELECT COALESCE(parent::text,'NULL') FROM folder WHERE \\\"UUID\\\"='${NS_ID}';")
   [[ "${NS_PARENT}" == "NULL" ]] || api_fail "a new set must sit at home root (parent IS NULL), got '${NS_PARENT}'"
   api_pass "POST /v2/networkset created a v3 folder at home root with the posted name/description"
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: GET /v3/files/folders/home/count — folder total matches home root"
+  NS_HOME_COUNT=$(curl -s -w "\n%{http_code}" -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/home/count")
+  NS_HOME_COUNT_HTTP=$(echo "${NS_HOME_COUNT}" | tail -1); NS_HOME_COUNT_BODY=$(echo "${NS_HOME_COUNT}" | head -1)
+  [[ "${NS_HOME_COUNT_HTTP}" == "200" ]] \
+    || api_fail "GET /v3/files/folders/home/count → HTTP ${NS_HOME_COUNT_HTTP}. Body: ${NS_HOME_COUNT_BODY:0:400}"
+  NS_HOME_FOLDER_COUNT=$(echo "${NS_HOME_COUNT_BODY}" | grep -oE '"folder"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$')
+  NS_ROOT_FOLDER_TOTAL=$(psql_ndex "SELECT count(*) FROM folder WHERE owneruuid='${NS_OWNER_ID}' AND parent IS NULL AND is_deleted=false;")
+  { [[ -n "${NS_HOME_FOLDER_COUNT}" ]] && [[ "${NS_HOME_FOLDER_COUNT}" == "${NS_ROOT_FOLDER_TOTAL}" ]]; } \
+    || api_fail "GET /v3/files/folders/home/count folder=${NS_HOME_FOLDER_COUNT} but DB root total=${NS_ROOT_FOLDER_TOTAL}. Body: ${NS_HOME_COUNT_BODY:0:400}"
+  api_pass "GET /v3/files/folders/home/count matches the owner's root-folder total"
 
   # Solr: v2-created sets must be searchable through v3. Indexing is async, hence the poll.
   poll_files_until_present PRIVATE "${NS_NAME}" "${NS_ID}" "networkset create indexing"

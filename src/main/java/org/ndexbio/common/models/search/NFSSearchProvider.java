@@ -163,6 +163,9 @@ public class NFSSearchProvider implements SearchProvider {
         fis.setIsCompleted(networkSummary.isCompleted());
         fis.setIsValid(networkSummary.getIsValid());
         fis.setDoi(networkSummary.getDoi());
+        // Top-level, matching the folder/home/shared listings. Also left in the
+        // attributes map below so existing consumers of that key keep working.
+        fis.setIsCertified(networkSummary.getIsCertified());
 
         Map<String, Object> attr = new HashMap<>();
         attr.put("description", networkSummary.getDescription());
@@ -170,6 +173,8 @@ public class NFSSearchProvider implements SearchProvider {
         attr.put("nodeCount", networkSummary.getNodeCount());
         attr.put("creationTime", networkSummary.getCreationTime());
         attr.put("isShowcase", networkSummary.getIsShowcase());
+        // Deprecated alias of the top-level isCertified set above; kept because removing it
+        // would break existing consumers of this key. Always the same value as the top level.
         attr.put("isCertified", networkSummary.getIsCertified());
         attr.put("indexLevel", networkSummary.getIndexLevel() != null ? networkSummary.getIndexLevel().toString() : null);
         attr.put("hasLayout", networkSummary.getHasLayout());

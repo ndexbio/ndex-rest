@@ -316,7 +316,7 @@ public class FileServiceV3 extends NdexService {
 
                           When copying a network source you don't otherwise have read access to, an optional `accesskey` query parameter authorizes the read when it matches an enabled access key on that network, any ancestor folder in its folder hierarchy, or a folder holding a same-owner shortcut to it. Access keys do not authorize copying a shortcut source.
 
-                          Copying folders is not supported – suggest creating a shortcut instead.
+                          To copy a network or shortcut to your home directory, set `targetId` to `null` or omit it entirely from the request body.
 
                           
                           Database Tables:
@@ -327,7 +327,7 @@ public class FileServiceV3 extends NdexService {
                           - 201 Created: Copy successful - Location header contains URL to new object
                           - 400 Bad Request: Invalid operation
                           - 401 Unauthorized: Not authenticated, Insufficient permissions, Invalid target folder
-                          - 500 Internal Server Error: Operation failed, Disk space exceeded, Invalid Network
+                          - 500 Internal Server Error: Operation failed, Disk space exceeded, Invalid Network, Copying a folder is not supported (use a shortcut instead)
                           """
     )
 	public Response copyFile(final CopyRequest request,

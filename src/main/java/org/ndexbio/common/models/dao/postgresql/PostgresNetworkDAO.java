@@ -1984,6 +1984,25 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
     
     }
     
+    /**
+     * Reads the current error message on a network, so a caller can decide whether its own error
+     * should replace what is already recorded there. Returns null when no error is set.
+     *
+     * @param networkId
+     */
+    public String getErrorMessage(UUID networkId) throws SQLException {
+    	String sql = "select error from network where \"UUID\" = ? and is_deleted=false";
+
+    	try ( PreparedStatement pst = db.prepareStatement(sql)) {
+    		pst.setObject(1, networkId);
+    		try (ResultSet rs = pst.executeQuery()) {
+    			if (rs.next())
+    				return rs.getString(1);
+    		}
+    	}
+    	return null;
+    }
+
     public void setWarning(UUID networkId, List<String> warnings) throws SQLException, NdexException {
     	String sqlStr = "update network set  warnings = ? where \"UUID\" = ? and is_deleted = false";
 		try (PreparedStatement pst = db.prepareStatement(sqlStr)) {
@@ -2313,7 +2332,7 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 
 	public List<FileItemSummary> listSharedNetworks(UUID userId) throws SQLException {
 		String sql = "SELECT n.\"UUID\", n.name, n.modification_time, n.updated_by, n.description, n.edgecount, n.visibility, n.owneruuid, n.owner, "
-		            + "n.readonly, n.error, n.warnings, n.iscomplete, n.is_validated, n.ndexdoi, nm.permission_type " +
+		            + "n.readonly, n.error, n.warnings, n.iscomplete, n.is_validated, n.ndexdoi, n.certified, nm.permission_type " +
 		            "FROM user_network_membership nm " +
 		            "JOIN network n ON n.\"UUID\" = nm.network_id " +
 		            "WHERE nm.user_id=? " +
@@ -2350,6 +2369,7 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 					networkSummary.setIsCompleted(rs.getBoolean("iscomplete"));
 					networkSummary.setIsValid(rs.getBoolean("is_validated"));
 					networkSummary.setDoi(rs.getString("ndexdoi"));
+					networkSummary.setIsCertified(rs.getBoolean("certified"));
 
 					networkSummary.setEdges((Integer) rs.getObject("edgecount"));
 					networkSummary.setVisibility(rs.getString("visibility"));
@@ -2366,7 +2386,10 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 	}
 	
 	public List<FileItemSummary> listNetworksSharedBySpecificUser(UUID userId, UUID ownerId, boolean compact) throws SQLException {
-	    String baseCols = "n.\"UUID\", n.name, n.modification_time, n.updated_by" +
+	    // Status columns match listSharedNetworks and the folder DAO's listings, so the three
+		// branches of GET /users/{id}/home return the same fields regardless of who is asking.
+		String baseCols = "n.\"UUID\", n.name, n.modification_time, n.updated_by, "
+		        + "n.readonly, n.error, n.warnings, n.iscomplete, n.is_validated, n.ndexdoi, n.certified" +
                 (compact ? ", n.description, n.edgecount, n.visibility" : "");
 
 		String sql = "SELECT DISTINCT " + baseCols +
@@ -2386,17 +2409,45 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 		          Map<String, Object> attr = null;
 		          if (compact) {
 		              attr = new HashMap<>();
-		              attr.put("description", rs.getString(5));
+		              attr.put("description", rs.getString("description"));
 		          }
+
+		          Boolean isReadOnly = null;
+		          boolean readOnlyValue = rs.getBoolean("readonly");
+		          if (!rs.wasNull()) {
+		              isReadOnly = readOnlyValue;
+		          }
+
+		          List<String> warnings = null;
+		          Array warningsArray = rs.getArray("warnings");
+		          if (warningsArray != null) {
+		              try {
+		                  warnings = Arrays.asList((String[]) warningsArray.getArray());
+		              } finally {
+		                  warningsArray.free();
+		              }
+		          }
+
+		          Boolean isCompleted = null;
+		          boolean completedValue = rs.getBoolean("iscomplete");
+		          if (!rs.wasNull()) {
+		              isCompleted = completedValue;
+		          }
+
 		          FileItemSummary summary = new FileItemSummary(
-		              (UUID) rs.getObject(1), FileType.NETWORK,
-		              rs.getString(2), rs.getTimestamp(3), rs.getString(4),
-		              attr
+		              (UUID) rs.getObject("UUID"), FileType.NETWORK,
+		              rs.getString("name"), rs.getTimestamp("modification_time"),
+		              rs.getString("updated_by"), attr,
+		              isReadOnly, rs.getString("error"), warnings, isCompleted
 		          );
 		          if (compact) {
-		              summary.setEdges((Integer) rs.getObject(6));
-		              summary.setVisibility(rs.getString(7));
+		              summary.setEdges((Integer) rs.getObject("edgecount"));
+		              summary.setVisibility(rs.getString("visibility"));
 		          }
+		          boolean isValidValue = rs.getBoolean("is_validated");
+		          summary.setIsValid(rs.wasNull() ? null : Boolean.valueOf(isValidValue));
+		          summary.setDoi(rs.getString("ndexdoi"));
+		          summary.setIsCertified(rs.getBoolean("certified"));
 		          result.add(summary);
 		      }
 		  }

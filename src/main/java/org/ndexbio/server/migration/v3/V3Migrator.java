@@ -307,12 +307,10 @@ public class V3Migrator implements AutoCloseable {
 						NetworkAttributesElement.ASPECT_NAME, NetworkAttributesElement.class, pathPrefix)) {
 					while (it.hasNext()) {
 						NetworkAttributesElement e = it.next();
-						if (!e.getName().equals(NFSIndexManager.NAME)){
-							List<String> indexWarnings = globalNetworkIndexManager.addCXNetworkAttrToIndex(e);
-							if (!indexWarnings.isEmpty())
-								for (String warning : indexWarnings)
-									System.err.println("Warning: " + warning);
-						}
+						List<String> indexWarnings = globalNetworkIndexManager.addCXNetworkAttrToIndex(e);
+						if (!indexWarnings.isEmpty())
+							for (String warning : indexWarnings)
+								System.err.println("Warning: " + warning);
 
 					}
 				}

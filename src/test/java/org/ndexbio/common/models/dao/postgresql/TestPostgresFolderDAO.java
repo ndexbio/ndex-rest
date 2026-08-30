@@ -19,6 +19,7 @@ import org.easymock.Capture;
 import org.junit.Test;
 import org.ndexbio.common.models.dao.AccessKeyResolver;
 import org.ndexbio.common.models.dao.DeletedFileIds;
+import org.ndexbio.model.object.FileCount;
 import org.ndexbio.common.models.dao.FilePermissionResolver;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.FileType;
@@ -47,6 +48,64 @@ public class TestPostgresFolderDAO {
         assertFalse(dao.accessKeyIsValid(folder, "bad"));
 
         verify(resolver);
+    }
+
+    @Test
+    public void testGetRootChildCountsOfUserQueriesEachRootTable() throws SQLException {
+        UUID ownerId = UUID.randomUUID();
+
+        Connection conn = createMock(Connection.class);
+        PreparedStatement folderStmt = createMock(PreparedStatement.class);
+        PreparedStatement networkStmt = createMock(PreparedStatement.class);
+        PreparedStatement shortcutStmt = createMock(PreparedStatement.class);
+        ResultSet folderRs = createMock(ResultSet.class);
+        ResultSet networkRs = createMock(ResultSet.class);
+        ResultSet shortcutRs = createMock(ResultSet.class);
+
+        expect(conn.prepareStatement("SELECT COUNT(*) FROM folder WHERE owneruuid=? AND parent IS NULL AND is_deleted=false"))
+                .andReturn(folderStmt);
+        folderStmt.setObject(1, ownerId);
+        expectLastCall();
+        expect(folderStmt.executeQuery()).andReturn(folderRs);
+        expect(folderRs.next()).andReturn(true);
+        expect(folderRs.getLong(1)).andReturn(2L);
+        folderRs.close();
+        expectLastCall();
+        folderStmt.close();
+        expectLastCall();
+
+        expect(conn.prepareStatement("SELECT COUNT(*) FROM network WHERE owneruuid=? AND parent IS NULL AND is_deleted=false"))
+                .andReturn(networkStmt);
+        networkStmt.setObject(1, ownerId);
+        expectLastCall();
+        expect(networkStmt.executeQuery()).andReturn(networkRs);
+        expect(networkRs.next()).andReturn(true);
+        expect(networkRs.getLong(1)).andReturn(3L);
+        networkRs.close();
+        expectLastCall();
+        networkStmt.close();
+        expectLastCall();
+
+        expect(conn.prepareStatement("SELECT COUNT(*) FROM shortcut WHERE owneruuid=? AND parent IS NULL AND is_deleted=false"))
+                .andReturn(shortcutStmt);
+        shortcutStmt.setObject(1, ownerId);
+        expectLastCall();
+        expect(shortcutStmt.executeQuery()).andReturn(shortcutRs);
+        expect(shortcutRs.next()).andReturn(true);
+        expect(shortcutRs.getLong(1)).andReturn(4L);
+        shortcutRs.close();
+        expectLastCall();
+        shortcutStmt.close();
+        expectLastCall();
+
+        replay(conn, folderStmt, networkStmt, shortcutStmt, folderRs, networkRs, shortcutRs);
+
+        FileCount counts = new PostgresFolderDAO(conn).getRootChildCountsOfUser(ownerId);
+
+        assertEquals(2L, counts.getFolder());
+        assertEquals(3L, counts.getNetwork());
+        assertEquals(4L, counts.getShortcut());
+        verify(conn, folderStmt, networkStmt, shortcutStmt, folderRs, networkRs, shortcutRs);
     }
 
     // ── read authorization goes through the injected resolver (issue #165) ────
@@ -274,6 +333,48 @@ public class TestPostgresFolderDAO {
                 networkSql.contains("user_network_membership"));
         assertTrue("network is_shared must add the ancestor-chain arm",
                 networkSql.contains("RECURSIVE chain"));
+        verify(resolver);
+    }
+
+    // ── certified must stay in the listing projection ─────────────────────────
+    //
+    // isCertified is read with a plain rs.getBoolean, so a SQL NULL — or a column dropped from the
+    // select list — both surface as false rather than as an error. Dropping it would therefore make
+    // every network in every folder listing silently report "not certified", including networks that
+    // really are certified and locked. No mapper test can catch that, because the mapper would still
+    // be doing exactly what it was told; only the query shape reveals it.
+    @Test
+    public void testListingSqlSelectsCertified() throws Exception {
+        Connection conn = createMock(Connection.class);
+        FilePermissionResolver resolver = createMock(FilePermissionResolver.class);
+
+        Set<UUID> granted = Collections.singleton(FOLDER);
+        expect(resolver.grantedFolderIds(USER, Permissions.READ)).andReturn(granted);
+        expect(resolver.readableConditionSql(FileType.FOLDER, "f", USER, granted)).andReturn("TRUE");
+        expect(resolver.readableConditionSql(FileType.NETWORK, "n", USER, granted)).andReturn("TRUE");
+        expect(resolver.readableConditionSql(FileType.SHORTCUT, "s", USER, granted)).andReturn("TRUE");
+
+        Capture<String> sql = newCapture(org.easymock.CaptureType.ALL);
+        for (int i = 0; i < 3; i++) {
+            PreparedStatement pst = createNiceMock(PreparedStatement.class);
+            ResultSet rs = createNiceMock(ResultSet.class);
+            expect(rs.next()).andReturn(false).anyTimes();
+            expect(pst.executeQuery()).andReturn(rs).anyTimes();
+            replay(pst, rs);
+            expect(conn.prepareStatement(capture(sql))).andReturn(pst);
+        }
+        replay(conn, resolver);
+
+        PostgresFolderDAO dao = new PostgresFolderDAO(conn);
+        dao.setPermissionResolver(resolver);
+        dao.listReadableItemsInFolder(FOLDER, false, null, USER);
+
+        // Order matches testListingSqlComputesIsSharedFromAncestorChain: folders, networks, shortcuts.
+        String networkSql = sql.getValues().get(1);
+        assertTrue("network listing must select certified, or every entry reports isCertified=false",
+                networkSql.contains("certified"));
+        assertTrue("network listing must keep selecting ndexdoi — isCertified is meaningless without it",
+                networkSql.contains("ndexdoi"));
         verify(resolver);
     }
 

@@ -12,6 +12,7 @@ import org.ndexbio.model.object.FileItemSummary;
 import org.ndexbio.model.object.FileSearchResult;
 import org.ndexbio.model.object.NdexFolder;
 import org.ndexbio.model.object.SimpleFileQuery;
+import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
 
@@ -23,6 +24,7 @@ import java.util.UUID;
 import static org.easymock.EasyMock.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertNotNull;
 
 /**
  * Unit tests for NFSSearchProvider's Solr query configuration and result mapping.
@@ -184,5 +186,58 @@ public class TestNFSSearchProvider {
         FileItemSummary summary = mapFolder(folderFixture(null));
 
         assertNull(summary.getVisibility());
+    }
+
+    // ── isCertified must reach BOTH the top level and the legacy attributes key ────
+    // mapNetworkToSummary sets isCertified twice: once on the FileItemSummary itself
+    // (matching the folder/home/shared listings) and once inside attributes, where it
+    // predates the top-level field and is kept so existing consumers keep working.
+    // The two are asserted together on purpose — a change that drops or diverges one
+    // of them is exactly the regression this guards, and neither assertion alone
+    // would catch it. Reflection is used for the same reason as mapFolder above:
+    // hydration through searchFiles needs a live DAOFactory.
+
+    private static FileItemSummary mapNetwork(NetworkSummary network) throws Exception {
+        NFSSearchProvider provider = new NFSSearchProvider(createMock(SolrClientWrapper.class), 100);
+        Method mapper = NFSSearchProvider.class.getDeclaredMethod("mapNetworkToSummary", NetworkSummary.class);
+        mapper.setAccessible(true);
+        return (FileItemSummary) mapper.invoke(provider, network);
+    }
+
+    /** visibility and indexLevel are left null deliberately: the mapper guards both. */
+    private static NetworkSummary networkFixture(boolean certified) {
+        NetworkSummary network = new NetworkSummary();
+        network.setExternalId(UUID.randomUUID());
+        network.setName("BindingDB");
+        network.setIsCertified(certified);
+        return network;
+    }
+
+    @Test
+    public void testMapNetworkToSummary_ReportsCertified() throws Exception {
+        FileItemSummary summary = mapNetwork(networkFixture(true));
+
+        assertEquals(Boolean.TRUE, summary.getIsCertified());
+        assertEquals(Boolean.TRUE, summary.getAttributes().get("isCertified"));
+    }
+
+    @Test
+    public void testMapNetworkToSummary_ReportsNotCertified() throws Exception {
+        // Pins that the value is read from the network row rather than hardcoded, and that
+        // false is carried through as a value instead of being dropped.
+        FileItemSummary summary = mapNetwork(networkFixture(false));
+
+        assertEquals(Boolean.FALSE, summary.getIsCertified());
+        assertEquals(Boolean.FALSE, summary.getAttributes().get("isCertified"));
+    }
+
+    /**
+     * A network entry must always carry the key. NetworkSummary.isCertified is a primitive
+     * boolean, so search results can never omit it; the DAO listings now match that. Absence
+     * is reserved for folders and shortcuts, which have no certification state.
+     */
+    @Test
+    public void testMapNetworkToSummary_AlwaysEmitsCertifiedForNetworks() throws Exception {
+        assertNotNull(mapNetwork(new NetworkSummary()).getIsCertified());
     }
 }
