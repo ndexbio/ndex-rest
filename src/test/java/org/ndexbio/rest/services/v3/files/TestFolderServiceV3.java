@@ -176,48 +176,6 @@ public class TestFolderServiceV3 {
     }
 
 
-    @Test
-    public void testListMyFoldersSuccess() throws Exception {
-        UUID userId = UUID.randomUUID();
-        User user = new User();
-        user.setExternalId(userId);
-
-        expect(mockHttpServletRequest.getAttribute("User")).andReturn(user);
-        replay(mockHttpServletRequest);
-
-        List<org.ndexbio.model.object.NdexFolder> folderList = new ArrayList<>();
-        org.ndexbio.model.object.NdexFolder folder = new org.ndexbio.model.object.NdexFolder();
-        folder.setName("My Folder");
-        folderList.add(folder);
-
-        FolderDAO mockFolderDAO = createMock(FolderDAO.class);
-        expect(mockFolderDAO.listFoldersOfUser(userId, 100)).andReturn(folderList);
-        mockFolderDAO.close();
-        expectLastCall();
-        replay(mockFolderDAO);
-
-        DAOFactory mockFactory = createMock(DAOFactory.class);
-        expect(mockFactory.getFolderDAO()).andReturn(mockFolderDAO);
-        replay(mockFactory);
-
-        Configuration.getInstance().setDAOFactory(mockFactory);
-
-        MockHttpRequest request = MockHttpRequest.get("/v3/files/folders/");
-        dispatcher.invoke(request, response);
-
-        assertEquals(Status.OK.getStatusCode(), response.getStatus());
-    }
-    
-    @Test
-    public void testListMyFoldersUnauthorized() throws Exception {
-        expect(mockHttpServletRequest.getAttribute("User")).andReturn(null).anyTimes();
-        replay(mockHttpServletRequest);
-
-        MockHttpRequest request = MockHttpRequest.get("/v3/files/folders/");
-        dispatcher.invoke(request, response);
-
-        assertEquals(Status.UNAUTHORIZED.getStatusCode(), response.getStatus());
-    }
     
     @Test
     public void testDeleteFolderUnauthorized() throws Exception {

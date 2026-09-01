@@ -498,41 +498,5 @@ public class FolderServiceV3 extends NdexService {
 	        return dao.listReadableItemsInFolder(folderUUID, compact, fileType, userId);
 	    }
 	}
-	
-	
-	@GET
-	@Path("/")
-	@Produces(MediaType.APPLICATION_JSON)
-    @Operation(
-            summary = "List My Folders",
-            description = """
-                          Lists all folders owned by the current user.
-                          
-                          Query Parameters:
-                          - limit: Optional. Maximum number of folders to return (default: 100)
-                          
-                          Edge Cases:
-                          - No folders: Returns empty array
-                          """
-    )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Folders listed",
-                    content = @Content(array = @ArraySchema(schema = @Schema(implementation = NdexFolder.class)))),
-            @ApiResponse(responseCode = "401", description = "Unauthorized")
-    })
-	public List<NdexFolder> listMyFolders(@QueryParam("limit") @DefaultValue("100") int limit) throws Exception {
-
-	    UUID userId = getLoggedInUserId();
-	    if (userId == null) {
-	        throw new UnauthorizedOperationException("You must be logged in to list your folders.");
-	    }
-
-	    List<NdexFolder> folders;
-	    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-	        folders = dao.listFoldersOfUser(userId, limit);
-	    }
-
-	    return folders;
-	}
 
 }
