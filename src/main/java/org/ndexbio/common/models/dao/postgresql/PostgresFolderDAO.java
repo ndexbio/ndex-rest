@@ -523,6 +523,22 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    return listItemsInFolderOrHome(folderId, compact, false, type, readClausesFor(viewerUserId));
 	}
 
+	@Override
+	public List<FileItemSummary> listReadableItemsInFolder(UUID folderId, boolean compact, FileType type, UUID viewerUserId, int offset, int limit) throws SQLException {
+	    return listItemsInFolderOrHome(folderId, compact, false, type, readClausesFor(viewerUserId), offset, limit);
+	}
+
+	@Override
+	public List<FileItemSummary> listItemsInFolderKeyFiltered(UUID folderId, boolean compact, FileType type, int offset, int limit) throws SQLException {
+	    return listItemsInFolderOrHome(folderId, compact, false, type,
+	            new ChildReadClauses("true", "true", KEY_ACCESSIBLE_SHORTCUT_CLAUSE), offset, limit);
+	}
+
+	@Override
+	public List<FileItemSummary> listRootItemsOfUser(UUID ownerId, boolean compact, FileType type, int offset, int limit) throws SQLException {
+	    return listItemsInFolderOrHome(ownerId, compact, true, type, null, offset, limit);
+	}
+
 	/**
 	 * Shortcut read predicate (alias {@code s}) for the key-accessible view: keep same-owner NETWORK
 	 * shortcuts, so a validated folder key surfaces the shortcuts whose target networks it now unlocks
@@ -819,6 +835,29 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    }
 
 	    return results;
+	}
+
+	/**
+	 * Like {@link #listItemsInFolderOrHome(UUID, boolean, boolean, FileType, ChildReadClauses)} but
+	 * applies ordering by last modification time descending and pagination (offset/limit).
+	 * A {@code limit} of {@code -1} returns all items.
+	 */
+	private List<FileItemSummary> listItemsInFolderOrHome(UUID contextId, boolean compact, boolean home, FileType type, ChildReadClauses childReadClauses, int offset, int limit) throws SQLException {
+	    List<FileItemSummary> all = listItemsInFolderOrHome(contextId, compact, home, type, childReadClauses);
+	    all.sort((a, b) -> {
+	        Timestamp ta = a.getModificationTime();
+	        Timestamp tb = b.getModificationTime();
+	        if (ta == null && tb == null) return 0;
+	        if (ta == null) return 1;
+	        if (tb == null) return -1;
+	        return tb.compareTo(ta); // descending
+	    });
+	    if (limit == -1) {
+	        return offset == 0 ? all : (offset >= all.size() ? new ArrayList<>() : all.subList(offset, all.size()));
+	    }
+	    int fromIndex = Math.min(offset, all.size());
+	    int toIndex = Math.min(offset + limit, all.size());
+	    return all.subList(fromIndex, toIndex);
 	}
 	
 	@Override

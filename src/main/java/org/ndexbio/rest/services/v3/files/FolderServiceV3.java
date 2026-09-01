@@ -439,6 +439,8 @@ public class FolderServiceV3 extends NdexService {
 					- format: Optional. "compact" or "update" (default). Controls level of detail in response.
 					- type: Optional. Filter by type: "network", "folder", or null for all types.
 					- accesskey: Optional. Access key for anonymous access
+					- offset: Optional. Number of items to skip (default: 0). Items are ordered by last modification time descending.
+					- limit: Optional. Maximum number of items to return (default: 100). Use -1 to return all items.
 
 					Response Format:
 					- Compact: Basic metadata only
@@ -458,13 +460,21 @@ public class FolderServiceV3 extends NdexService {
 	        @PathParam("folderid")  final String folderIdStr,
 	        @QueryParam("format")   @DefaultValue("update") String format,
 	        @QueryParam("type")     String type,
-	        @QueryParam("accesskey") String accessKey
+	        @QueryParam("accesskey") String accessKey,
+	        @QueryParam("offset")   @DefaultValue("0") int offset,
+	        @QueryParam("limit")    @DefaultValue("100") int limit
 	) throws Exception {
 		
 		boolean compact = "compact".equalsIgnoreCase(format);
 		FileType fileType = null;
 		if (type != null) {
 			fileType = FileType.valueOf(type.toUpperCase());
+		}
+		if (offset < 0) {
+			throw new BadRequestException("offset must be >= 0");
+		}
+		if (limit < -1) {
+			throw new BadRequestException("limit must be >= -1 (use -1 to return all items)");
 		}
 		
 	    UUID userId = getLoggedInUserId();
@@ -476,7 +486,7 @@ public class FolderServiceV3 extends NdexService {
 			}
 	        List<FileItemSummary> items;
 	        try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-	            items = dao.listRootItemsOfUser(userId, compact, fileType);
+	            items = dao.listRootItemsOfUser(userId, compact, fileType, offset, limit);
 	        }
 	        return items;
 	    }
@@ -490,12 +500,12 @@ public class FolderServiceV3 extends NdexService {
 	        // valid key is present, the caller must be able to read the folder and gets only the
 	        // children they may see.
 	        if (dao.accessKeyIsValid(folderUUID, accessKey)) {
-	            return dao.listItemsInFolderKeyFiltered(folderUUID, compact, fileType);
+	            return dao.listItemsInFolderKeyFiltered(folderUUID, compact, fileType, offset, limit);
 	        }
 	        if (!dao.isReadable(folderUUID, userId)) {
 	            throw new UnauthorizedOperationException("User doesn't have read access to this folder.");
 	        }
-	        return dao.listReadableItemsInFolder(folderUUID, compact, fileType, userId);
+	        return dao.listReadableItemsInFolder(folderUUID, compact, fileType, userId, offset, limit);
 	    }
 	}
 	
