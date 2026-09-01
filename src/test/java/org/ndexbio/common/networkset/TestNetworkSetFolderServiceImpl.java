@@ -32,6 +32,7 @@ import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.FileItemSummary;
+import org.ndexbio.model.object.FileCount;
 import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.NdexFolder;
 import org.ndexbio.model.object.NetworkSet;
@@ -560,7 +561,7 @@ public class TestNetworkSetFolderServiceImpl {
 		}
 		FolderDAO folderDao = createNiceMock(FolderDAO.class);
 		// FolderDAO has no offset, so the service fetches offset+limit rows and pages in memory.
-		expect(folderDao.listFoldersOfUser(OWNER_ID, 4)).andReturn(folders);
+		expect(folderDao.listFoldersOfUser(OWNER_ID, 4, false)).andReturn(folders);
 		replay(folderDao);
 
 		List<NetworkSet> sets = new NetworkSetFolderServiceImpl(factoryOf(folderDao, null, null))
@@ -574,7 +575,7 @@ public class TestNetworkSetFolderServiceImpl {
 	@Test
 	public void listReturnsEmptyWhenOffsetIsPastTheEnd() throws Exception {
 		FolderDAO folderDao = createNiceMock(FolderDAO.class);
-		expect(folderDao.listFoldersOfUser(OWNER_ID, 12)).andReturn(List.of(folder(SET_ID, null, false)));
+		expect(folderDao.listFoldersOfUser(OWNER_ID, 12, false)).andReturn(List.of(folder(SET_ID, null, false)));
 		replay(folderDao);
 
 		List<NetworkSet> sets = new NetworkSetFolderServiceImpl(factoryOf(folderDao, null, null))
@@ -587,7 +588,7 @@ public class TestNetworkSetFolderServiceImpl {
 	public void listTreatsNonPositiveLimitAsUnlimited() throws Exception {
 		FolderDAO folderDao = createNiceMock(FolderDAO.class);
 		// limit <= 0 means "no limit", the legacy contract.
-		expect(folderDao.listFoldersOfUser(OWNER_ID, Integer.MAX_VALUE))
+		expect(folderDao.listFoldersOfUser(OWNER_ID, Integer.MAX_VALUE, false))
 				.andReturn(List.of(folder(SET_ID, null, false)));
 		replay(folderDao);
 
@@ -601,7 +602,7 @@ public class TestNetworkSetFolderServiceImpl {
 	@Test
 	public void summaryOnlyListDoesNotLoadMembers() throws Exception {
 		FolderDAO folderDao = createMock(FolderDAO.class);
-		expect(folderDao.listFoldersOfUser(OWNER_ID, Integer.MAX_VALUE))
+		expect(folderDao.listFoldersOfUser(OWNER_ID, Integer.MAX_VALUE, false))
 				.andReturn(List.of(folder(SET_ID, null, false)));
 		folderDao.close();
 		expectLastCall().anyTimes();
@@ -623,7 +624,7 @@ public class TestNetworkSetFolderServiceImpl {
 		NdexFolder hidden = folder(UUID.randomUUID(), null, false);
 
 		FolderDAO folderDao = createNiceMock(FolderDAO.class);
-		expect(folderDao.listFoldersOfUser(OWNER_ID, Integer.MAX_VALUE))
+		expect(folderDao.listFoldersOfUser(OWNER_ID, Integer.MAX_VALUE, false))
 				.andReturn(List.of(readable, hidden));
 		expect(folderDao.isReadable(readable.getExternalId(), viewerId)).andReturn(true);
 		// Folders have a visibility that network_set never had, so a non-self caller must not be handed
@@ -636,6 +637,29 @@ public class TestNetworkSetFolderServiceImpl {
 
 		assertEquals(1, sets.size());
 		assertEquals(SET_ID, sets.get(0).getExternalId());
+	}
+
+	@Test
+	public void countSetsOfUserCountsOnlyHomeRootFolders() throws Exception {
+		// getOwnedFileCounts counts folders at every depth; using it here would report more sets than
+		// listSetsOfUser returns, so /v2/user/{id}/networkcount would contradict /v2/user/{id}/networksets.
+		FileCount rootCounts = new FileCount();
+		rootCounts.setFolder(7L);
+		rootCounts.setNetwork(99L);
+		rootCounts.setShortcut(99L);
+
+		FolderDAO folderDao = createMock(FolderDAO.class);
+		expect(folderDao.getRootChildCountsOfUser(OWNER_ID)).andReturn(rootCounts);
+		folderDao.close();
+		expectLastCall().anyTimes();
+		replay(folderDao);
+
+		int count = new NetworkSetFolderServiceImpl(factoryOf(folderDao, null, null))
+				.countSetsOfUser(OWNER_ID);
+
+		// Only the folder count is a set count; the sibling network/shortcut counts are ignored.
+		assertEquals(7, count);
+		verify(folderDao);
 	}
 
 	// ── delete ───────────────────────────────────────────────────────────────

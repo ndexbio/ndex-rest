@@ -2389,6 +2389,50 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
     || api_fail "networkSetCount (${NS_SET_COUNT}) must equal the networksets list length (${NS_LIST_LEN})"
   api_pass "networkSetCount (${NS_SET_COUNT}) equals the unpaged /networksets length"
 
+  # ── 7b) Only home-root folders are network sets (issue #164) ───────────────────────────────────
+  # A network set is always created at the owner's home root, so a folder nested inside another
+  # folder is not a set: it must be absent from /v2/user/{id}/networksets and from networkSetCount.
+  # /v3/files/folders/ is deliberately NOT scoped this way and must still return the nested folder.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: POST /v3/files/folders/ — sub-folder nested under set ${NS_ID}"
+  NS_SUB_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+    -H "Content-Type: application/json" \
+    -d "{\"name\":\"NS sub-folder\",\"parent\":\"${NS_ID}\"}" \
+    "${BASE_URL}/v3/files/folders/")
+  NS_SUB_HTTP=$(echo "${NS_SUB_RESP}" | tail -1); NS_SUB_BODY=$(echo "${NS_SUB_RESP}" | head -1)
+  [[ "${NS_SUB_HTTP}" == "201" ]] \
+    || api_fail "create nested sub-folder → HTTP ${NS_SUB_HTTP} (expected 201). Body: ${NS_SUB_BODY:0:300}"
+  NS_SUB_ID=$(echo "${NS_SUB_BODY}" | grep -oiE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1 || true)
+  [[ -n "${NS_SUB_ID}" ]] || api_fail "no uuid in sub-folder create response. Body: ${NS_SUB_BODY:0:300}"
+  api_pass "sub-folder ${NS_SUB_ID} created under root set ${NS_ID}"
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: GET /v2/user/${NS_OWNER_ID}/networksets — nested folder must NOT be listed"
+  NSU_NESTED=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/user/${NS_OWNER_ID}/networksets?summary=true")
+  echo "${NSU_NESTED}" | grep -q "${NS_ID}" \
+    || api_fail "root set ${NS_ID} disappeared from the list. Body: ${NSU_NESTED:0:500}"
+  echo "${NSU_NESTED}" | grep -q "${NS_SUB_ID}" \
+    && api_fail "nested folder ${NS_SUB_ID} must not be listed as a network set. Body: ${NSU_NESTED:0:500}"
+  api_pass "GET /v2/user/{id}/networksets lists the root set and omits the nested folder (issue #164)"
+
+  # The count is scoped the same way, or the account page contradicts the list it describes.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: GET /v2/user/${NS_OWNER_ID}/networkcount — count still matches the list"
+  NS_SET_COUNT2=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/user/${NS_OWNER_ID}/networkcount" \
+    | grep -oE '"networkSetCount"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$' || true)
+  NS_LIST_LEN2=$(echo "${NSU_NESTED}" | grep -oE '"externalId"' | wc -l | tr -d '[:space:]')
+  [[ "${NS_SET_COUNT2}" == "${NS_LIST_LEN2}" ]] \
+    || api_fail "with a nested folder present: networkSetCount (${NS_SET_COUNT2}) != list length (${NS_LIST_LEN2})"
+  api_pass "networkSetCount (${NS_SET_COUNT2}) still equals the /networksets length with a nested folder present"
+
+  # Regression guard: the v3 listing is a different contract and must keep returning every folder.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: GET /v3/files/folders/ — nested folder must STILL be returned"
+  NS_V3_FOLDERS=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/")
+  echo "${NS_V3_FOLDERS}" | grep -q "${NS_SUB_ID}" \
+    || api_fail "the v2 root scoping leaked into GET /v3/files/folders/; nested folder ${NS_SUB_ID} is missing. Body: ${NS_V3_FOLDERS:0:500}"
+  api_pass "GET /v3/files/folders/ still lists folders at any depth (unaffected by the v2 scoping)"
+
   # ── 8) PUT /{id}/systemproperty → showcase is a documented no-op ────────────────────────────────
   NS_BEFORE=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/networkset/${NS_ID}")
   assert_networkset_ok PUT "${BASE_URL}/v2/networkset/${NS_ID}/systemproperty" 204 \

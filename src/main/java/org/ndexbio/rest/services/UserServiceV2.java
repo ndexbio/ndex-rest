@@ -1036,7 +1036,7 @@ public class UserServiceV2 extends NdexService {
 
 	  	@GET
 		@Path("/{userid}/networkcount")
-		@Operation(summary = "Get Number of Networks in User's account page", description = "This is a convenience function designed to support My Account pages in NDEx applications. The returned object tells the number of NetworkSummary and networkSet objects for this page. Note 'networkSetCount' counts the user's v3 **folders**, since a network set id is a folder id; it always equals the unpaged length of GET /v2/user/{userid}/networksets.")
+		@Operation(summary = "Get Number of Networks in User's account page", description = "This is a convenience function designed to support My Account pages in NDEx applications. The returned object tells the number of NetworkSummary and networkSet objects for this page. Note 'networkSetCount' counts the user's **home-root** v3 folders, since a network set id is a folder id; it always equals the unpaged length of GET /v2/user/{userid}/networksets. A folder nested inside another folder is not counted.")
 		@Produces("application/json")
 		public Map<String,Integer> getNumNetworksForMyAccountPage(
 						 @PathParam("userid") String userIdStr
@@ -1050,9 +1050,10 @@ public class UserServiceV2 extends NdexService {
 			try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 				result.put("networkCount",  dao.getNumNetworksForMyAccountPage(userId));
 			}
-			// Counted with the same predicate listSetsOfUser pages over (owneruuid=? AND is_deleted=false),
-			// so this number can never disagree with the list it describes. The endpoint is self-only, so
-			// the readability filtering that applies to a non-self list caller is irrelevant here.
+			// Counted with the same predicate listSetsOfUser pages over (owneruuid=? AND parent IS NULL
+			// AND is_deleted=false), so this number can never disagree with the list it describes. The
+			// endpoint is self-only, so the readability filtering that applies to a non-self list caller
+			// is irrelevant here.
 			result.put("networkSetCount", new NetworkSetFolderServiceImpl(
 					Configuration.getInstance().getDAOFactory()).countSetsOfUser(userId));
 
@@ -1065,7 +1066,10 @@ public class UserServiceV2 extends NdexService {
 		@Deprecated
 		@Operation(summary = "Get All Network Sets owned by a user (DEPRECATED)",
 				description = FOLDER_BACKED_NETWORKSET_DESC
-				+ " Lists the **folders** this user owns, at any depth. The 'showcase' parameter is a "
+				+ " Lists the **folders** this user owns at the home root — the only place a network set is "
+				+ "created. A folder nested inside another folder is not listed and is not counted by "
+				+ "GET /v2/user/{userid}/networkcount, even if it was created here and later moved; "
+				+ "GET /v2/networkset/{networksetid} still serves it directly. The 'showcase' parameter is a "
 				+ "**no-op**: folders have no showcase flag, so passing showcase=true does not filter the "
 				+ "result. With summary=true each set is returned without its members, as \"networks\":[] "
 				+ "rather than with the field omitted. Legacy fields without a folder equivalent are not "

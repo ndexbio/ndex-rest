@@ -739,11 +739,34 @@ echo "${MCP_JSON}" | grep -qE 'visibility[^A-Za-z]+PUBLIC' \
   || api_fail "get_folder did not report visibility=PUBLIC for MCP-created folder: ${MCP_JSON:0:400}"
 mcp_pass "get_folder mode=get reports visibility=PUBLIC (MCP write-accept + read-report)"
 
+# get_folder mode=list returns EVERY folder the caller owns, at any depth. /v2/user/{id}/networksets
+# is scoped to home-root folders (issue #164); that scoping must not reach this tool, so nest a folder
+# and require it in the listing.
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: manage_folder mode=create nested under ${MCP_FOLDER_ID} (auth)"
+mcp_call '{"jsonrpc":"2.0","id":"mcp-28c","method":"tools/call","params":{"name":"manage_folder","arguments":{"mode":"create","name":{"waived":false,"parameter":"mcp-integration-test-subfolder"},"parent":"'"${MCP_FOLDER_ID}"'"}}}' \
+  "-u ${TEST_USER}:${TEST_PASS}"
+mcp_pass "manage_folder mode=create nested under ${MCP_FOLDER_ID} (auth)"
+MCP_SUBFOLDER_ID=$(echo "${MCP_JSON}" | grep -o '"folderId":"[^"]*"' | head -1 | cut -d'"' -f4)
+[[ -n "${MCP_SUBFOLDER_ID}" ]] \
+  || api_fail "manage_folder create (nested) → no folderId in response: ${MCP_JSON:0:300}"
+
 CALL_NUM=$((CALL_NUM+1))
 echo "  API call ${CALL_NUM}: get_folder mode=list (auth)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-29","method":"tools/call","params":{"name":"get_folder","arguments":{"mode":"list"}}}' \
   "-u ${TEST_USER}:${TEST_PASS}"
 mcp_pass "get_folder mode=list (auth)"
+echo "${MCP_JSON}" | grep -q "${MCP_FOLDER_ID}" \
+  || api_fail "get_folder mode=list omitted root folder ${MCP_FOLDER_ID}: ${MCP_JSON:0:400}"
+echo "${MCP_JSON}" | grep -q "${MCP_SUBFOLDER_ID}" \
+  || api_fail "get_folder mode=list omitted nested folder ${MCP_SUBFOLDER_ID}; the v2 home-root scoping leaked into the MCP tool: ${MCP_JSON:0:400}"
+api_pass "get_folder mode=list returns folders at any depth, nested folder included"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: manage_folder mode=delete nested folder (auth)"
+mcp_call '{"jsonrpc":"2.0","id":"mcp-29b","method":"tools/call","params":{"name":"manage_folder","arguments":{"mode":"delete","folderId":{"waived":false,"parameter":"'"${MCP_SUBFOLDER_ID}"'"}}}}' \
+  "-u ${TEST_USER}:${TEST_PASS}"
+mcp_pass "manage_folder mode=delete nested folder (auth)"
 
 CALL_NUM=$((CALL_NUM+1))
 echo "  API call ${CALL_NUM}: manage_folder mode=delete (auth)"
