@@ -81,7 +81,10 @@ public class NetworkSetFolderServiceImpl implements NetworkSetFolderService {
 			// FolderDAO has no offset, so fetch enough rows and page in memory. limit <= 0 means unlimited,
 			// preserving the legacy contract.
 			int fetchLimit = limit > 0 ? (offset > 0 ? offset + limit : limit) : Integer.MAX_VALUE;
-			List<NdexFolder> folders = dao.listFoldersOfUser(ownerId, fetchLimit);
+			// includeNested=false: a network set is always created at the owner's home root, so nested
+			// folders are not sets and scanning them is what made this endpoint take 30+ seconds on
+			// accounts with large folder trees.
+			List<NdexFolder> folders = dao.listFoldersOfUser(ownerId, fetchLimit, false);
 
 			// The legacy list had no visibility notion, because network_set had no visibility column.
 			// Folders do, so a non-self caller is limited to what they may actually read rather than
@@ -119,10 +122,12 @@ public class NetworkSetFolderServiceImpl implements NetworkSetFolderService {
 
 	@Override
 	public int countSetsOfUser(UUID ownerId) throws SQLException, NdexException {
-		// Same predicate as listFoldersOfUser (owneruuid=? AND is_deleted=false), so this count always
-		// equals the unpaged length of listSetsOfUser for a self-caller.
-		try (var dao = daoFactory.getFileDAO()) {
-			return (int) dao.getOwnedFileCounts(ownerId).getFolder();
+		// getRootChildCountsOfUser counts with owneruuid=? AND parent IS NULL AND is_deleted=false, the
+		// same predicate listSetsOfUser now pages over, so this count always equals the unpaged length of
+		// that list for a self-caller. getOwnedFileCounts counts folders at every depth and would report
+		// more sets than the list contains.
+		try (FolderDAO dao = daoFactory.getFolderDAO()) {
+			return (int) dao.getRootChildCountsOfUser(ownerId).getFolder();
 		} catch (SQLException e) {
 			throw e;
 		} catch (Exception e) {

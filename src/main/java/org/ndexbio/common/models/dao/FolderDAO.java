@@ -93,7 +93,16 @@ public interface FolderDAO extends AutoCloseable {
 	 */
 	FileCount getRootChildCountsOfUser(UUID ownerId) throws SQLException;
 	
+	/** Every folder this user owns, at any depth. Equivalent to {@code listFoldersOfUser(ownerId, limit, true)}. */
 	List<NdexFolder> listFoldersOfUser(UUID ownerId, int limit) throws SQLException;
+
+	/**
+	 * The folders this user owns, ordered by name.
+	 *
+	 * @param includeNested when false, only home-root folders (parent IS NULL) are returned, matching
+	 *        the "home" scope {@link #listRootItemsOfUser} and {@link #getRootChildCountsOfUser} use.
+	 */
+	List<NdexFolder> listFoldersOfUser(UUID ownerId, int limit, boolean includeNested) throws SQLException;
 	
 	NdexObjectUpdateStatus setFolderPermission(UUID folderId, UUID userId, Permissions permission) throws SQLException, NdexException;
 	

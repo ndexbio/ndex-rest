@@ -150,6 +150,76 @@ public class TestPostgresFolderDAO {
         return sql.getValue();
     }
 
+    /**
+     * The all-folders scope must keep emitting exactly the statement it always has. The predicate is
+     * assembled from fragments, so a stray space would change the SQL text with nothing else to catch it.
+     */
+    @Test
+    public void listFoldersOfUserIncludesNestedFoldersByDefault() throws SQLException {
+        UUID ownerId = UUID.randomUUID();
+
+        Connection conn = createMock(Connection.class);
+        PreparedStatement stmt = createMock(PreparedStatement.class);
+        ResultSet rs = createMock(ResultSet.class);
+
+        expect(conn.prepareStatement("SELECT \"UUID\", name, parent, creation_time, modification_time, is_deleted, description, visibility "
+                + " FROM folder "
+                + " WHERE owneruuid=? AND is_deleted=false "
+                + " ORDER BY name "
+                + " LIMIT ?")).andReturn(stmt);
+        stmt.setObject(1, ownerId);
+        expectLastCall();
+        stmt.setInt(2, 25);
+        expectLastCall();
+        expect(stmt.executeQuery()).andReturn(rs);
+        expect(rs.next()).andReturn(false);
+        rs.close();
+        expectLastCall();
+        stmt.close();
+        expectLastCall();
+
+        replay(conn, stmt, rs);
+
+        // The 2-arg form is what /v3/files/folders/ and the MCP get_folder list mode call; it must stay
+        // on the all-folders scope.
+        assertTrue(new PostgresFolderDAO(conn).listFoldersOfUser(ownerId, 25).isEmpty());
+
+        verify(conn, stmt, rs);
+    }
+
+    @Test
+    public void listFoldersOfUserRestrictsToHomeRootWhenNestedExcluded() throws SQLException {
+        UUID ownerId = UUID.randomUUID();
+
+        Connection conn = createMock(Connection.class);
+        PreparedStatement stmt = createMock(PreparedStatement.class);
+        ResultSet rs = createMock(ResultSet.class);
+
+        // parent IS NULL is the same home-root definition getRootChildCountsOfUser counts with, so
+        // /v2/user/{id}/networksets and its networkSetCount cannot disagree.
+        expect(conn.prepareStatement("SELECT \"UUID\", name, parent, creation_time, modification_time, is_deleted, description, visibility "
+                + " FROM folder "
+                + " WHERE owneruuid=? AND parent IS NULL AND is_deleted=false "
+                + " ORDER BY name "
+                + " LIMIT ?")).andReturn(stmt);
+        stmt.setObject(1, ownerId);
+        expectLastCall();
+        stmt.setInt(2, 25);
+        expectLastCall();
+        expect(stmt.executeQuery()).andReturn(rs);
+        expect(rs.next()).andReturn(false);
+        rs.close();
+        expectLastCall();
+        stmt.close();
+        expectLastCall();
+
+        replay(conn, stmt, rs);
+
+        assertTrue(new PostgresFolderDAO(conn).listFoldersOfUser(ownerId, 25, false).isEmpty());
+
+        verify(conn, stmt, rs);
+    }
+
     @Test
     public void testIsReadableEmbedsResolverPredicateAndReturnsGranted() throws Exception {
         String sql = runIsReadable(true, true, USER);

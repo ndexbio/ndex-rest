@@ -823,11 +823,21 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	
 	@Override
 	public List<NdexFolder> listFoldersOfUser(UUID ownerId, int limit) throws SQLException {
+	    return listFoldersOfUser(ownerId, limit, true);
+	}
+
+	@Override
+	public List<NdexFolder> listFoldersOfUser(UUID ownerId, int limit, boolean includeNested) throws SQLException {
 	    List<NdexFolder> result = new ArrayList<>();
 
+	    // includeNested=false narrows to the home root, the same scope listItemsInFolderOrHome and
+	    // countHomeChildren use. The predicate is a fragment of the one statement rather than a second
+	    // SELECT so the column list and ordering cannot drift apart between the two scopes.
 	    String sql = "SELECT \"UUID\", name, parent, creation_time, modification_time, is_deleted, description, visibility " +
 	                 " FROM folder " +
-	                 " WHERE owneruuid=? AND is_deleted=false " +
+	                 " WHERE owneruuid=?" +
+	                 (includeNested ? "" : " AND parent IS NULL") +
+	                 " AND is_deleted=false " +
 	                 " ORDER BY name " +
 	                 " LIMIT ?";
 

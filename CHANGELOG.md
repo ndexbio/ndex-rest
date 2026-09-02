@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.7] - unreleased
+
+### Fixed
+
+- **`GET /v2/user/{userid}/networksets` no longer scans nested folders.** A
+network set is always created at the owner's home root, so the listing is now scoped there and the
+nested folders are skipped. `networkSetCount` from
+`GET /v2/user/{userid}/networkcount` is scoped the same way, so it still equals the unpaged length
+of the list. [#164](https://github.com/ndexbio/ndex-rest/issues/164)
+  - **Behavior change:** a folder nested inside another folder is no longer listed or counted.
+  - `GET /v3/files/folders/` and the MCP `get_folder` tool's `list` mode are unaffected — both still
+  return every folder the user owns, at any depth.
+
 ## [3.0.6] - 2026-08-28
 
 ### Added
