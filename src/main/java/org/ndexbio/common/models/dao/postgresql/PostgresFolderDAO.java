@@ -11,6 +11,7 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -514,13 +515,15 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	}
 	
 	@Override
-	public List<FileItemSummary> listItemsInFolder(UUID folderId, boolean compact, FileType type) throws SQLException {
-	    return listItemsInFolderOrHome(folderId, compact, false, type);
+	public List<FileItemSummary> listItemsInFolder(UUID folderId, boolean compact, FileType type,
+	        int start, int size) throws SQLException {
+	    return listItemsInFolderOrHome(folderId, compact, false, type, null, start, size);
 	}
 
 	@Override
-	public List<FileItemSummary> listReadableItemsInFolder(UUID folderId, boolean compact, FileType type, UUID viewerUserId) throws SQLException {
-	    return listItemsInFolderOrHome(folderId, compact, false, type, readClausesFor(viewerUserId));
+	public List<FileItemSummary> listReadableItemsInFolder(UUID folderId, boolean compact, FileType type,
+	        UUID viewerUserId, int start, int size) throws SQLException {
+	    return listItemsInFolderOrHome(folderId, compact, false, type, readClausesFor(viewerUserId), start, size);
 	}
 
 	/**
@@ -537,13 +540,14 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	        + " WHERE tn.\"UUID\" = s.target AND tn.owneruuid = s.owneruuid AND tn.is_deleted = false)";
 
 	@Override
-	public List<FileItemSummary> listItemsInFolderKeyFiltered(UUID folderId, boolean compact, FileType type) throws SQLException {
+	public List<FileItemSummary> listItemsInFolderKeyFiltered(UUID folderId, boolean compact, FileType type,
+	        int start, int size) throws SQLException {
 	    // The key-accessible children of a folder whose access key validated. A validated folder key is
 	    // valid for every folder/network descendant, and for same-owner NETWORK shortcuts whose target
 	    // networks it now unlocks (issue #133/#137). Expressed as constant per-type clauses (no key
 	    // inlined into SQL). Keeps results consistent with a direct network key fetch.
 	    return listItemsInFolderOrHome(folderId, compact, false, type,
-	            new ChildReadClauses("true", "true", KEY_ACCESSIBLE_SHORTCUT_CLAUSE));
+	            new ChildReadClauses("true", "true", KEY_ACCESSIBLE_SHORTCUT_CLAUSE), start, size);
 	}
 
 	@Override
@@ -558,8 +562,9 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	}
 
 	@Override
-	public List<FileItemSummary> listRootItemsOfUser(UUID ownerId, boolean compact, FileType type) throws SQLException {
-	    return listItemsInFolderOrHome(ownerId, compact, true, type);
+	public List<FileItemSummary> listRootItemsOfUser(UUID ownerId, boolean compact, FileType type,
+	        int start, int size) throws SQLException {
+	    return listItemsInFolderOrHome(ownerId, compact, true, type, null, start, size);
 	}
 
 	@Override
@@ -589,7 +594,26 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	}
 
 	/**
-	 * Lists items in a folder or in the user's root directory.
+	 * The in-memory equivalent of the key query's ORDER BY, so an unbounded listing is exactly the
+	 * concatenation of its pages.
+	 *
+	 * <p>The uuid tiebreaker compares the canonical lowercase text rather than the UUID object on
+	 * purpose: Postgres orders {@code uuid} as 16 raw bytes (memcmp), while {@link UUID#compareTo}
+	 * compares two SIGNED longs, so the two disagree for any uuid with the high bit set — roughly half
+	 * of all variant-1 uuids. Using UUID.compareTo here would silently stop an unbounded listing from
+	 * being the concatenation of its pages whenever modification_time ties.</p>
+	 */
+	private static final Comparator<FileItemSummary> LISTING_ORDER =
+	        Comparator.comparing(FileItemSummary::getModificationTime,
+	                             Comparator.nullsLast(Comparator.<Timestamp>reverseOrder()))
+	                  .thenComparing(s -> s.getUuid().toString())
+	                  .thenComparing(s -> s.getType().name());
+
+	/** One row's identity in the total order produced by the key query. */
+	private record ItemKey(UUID id, FileType type) {}
+
+	/**
+	 * Lists items in a folder or in the user's root directory, newest first.
 	 *
 	 * @param contextId UUID to use as the query anchor:
 	 *                  - if {@code home} is {@code false}, this is a folder UUID.
@@ -597,22 +621,199 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	 * @param compact if true, return {@code compact}, if false {@code update} form of metadata
 	 * @param home if true, return root-level (home) items for the given user
 	 * @param type if not null, filter by type (network or folder)
-	 * @return list of folders, networks, and shortcuts
-	 * @throws SQLException if database access fails
-	 */
-	private List<FileItemSummary> listItemsInFolderOrHome(UUID contextId, boolean compact, boolean home, FileType type) throws SQLException {
-	    return listItemsInFolderOrHome(contextId, compact, home, type, null);
-	}
-
-	/**
 	 * @param childReadClauses when non-null, its per-type readable predicate is AND-appended to each
 	 *        child query so only children the caller may read are returned; when null, no per-child
 	 *        filtering is applied (internal/home callers).
+	 * @param start zero-based row offset into the total order; a negative value is clamped to 0
+	 * @param size maximum rows to return; a non-positive value returns every matching row
+	 * @return list of folders, networks, and shortcuts, ordered by modification time descending
+	 * @throws SQLException if database access fails
 	 */
-	private List<FileItemSummary> listItemsInFolderOrHome(UUID contextId, boolean compact, boolean home, FileType type, ChildReadClauses childReadClauses) throws SQLException {
-	    List<FileItemSummary> results = new ArrayList<>();
-	    /* ────────────── 1) Folders ─────────────── */
+	private List<FileItemSummary> listItemsInFolderOrHome(UUID contextId, boolean compact, boolean home,
+	        FileType type, ChildReadClauses childReadClauses, int start, int size) throws SQLException {
+
+	    if (start < 0) {
+	        start = 0;
+	    }
+
+	    if (size <= 0) {
+	        // Unbounded. Every pre-paging caller takes this path and needs all the rows anyway, so run the
+	        // three child queries exactly as before and impose the order in memory. Routing it through the
+	        // key query would add a round trip to fetch rows we are going to read regardless, and would
+	        // break the invariant that this path issues folders, networks and shortcuts as three separate
+	        // statements in that order — which TestPostgresFolderDAO's positional captures depend on.
+	        List<FileItemSummary> results = new ArrayList<>();
+	        if (type == null || type == FileType.FOLDER) {
+	            appendFolderItems(results, contextId, compact, home, childReadClauses, null);
+	        }
+	        if (type == null || type == FileType.NETWORK) {
+	            appendNetworkItems(results, contextId, compact, home, childReadClauses, null);
+	        }
+	        appendShortcutItems(results, contextId, compact, home, type, childReadClauses, null);
+	        results.sort(LISTING_ORDER);
+	        return start >= results.size()
+	                ? new ArrayList<>()
+	                : new ArrayList<>(results.subList(start, results.size()));
+	    }
+
+	    // Paged: one cheap statement picks the page's rows and their order, then only those rows are
+	    // hydrated. The per-row is_shared recursive subqueries below are the expensive part of a listing,
+	    // so keeping them out of the key query is what makes this pagination rather than truncation.
+	    List<ItemKey> keys = listItemKeyPage(contextId, home, type, childReadClauses, start, size);
+	    if (keys.isEmpty()) {
+	        return new ArrayList<>();
+	    }
+
+	    List<UUID> folderIds = idsOfType(keys, FileType.FOLDER);
+	    List<UUID> networkIds = idsOfType(keys, FileType.NETWORK);
+	    List<UUID> shortcutIds = idsOfType(keys, FileType.SHORTCUT);
+
+	    List<FileItemSummary> hydrated = new ArrayList<>(keys.size());
+	    if (!folderIds.isEmpty()) {
+	        appendFolderItems(hydrated, contextId, compact, home, childReadClauses, folderIds);
+	    }
+	    if (!networkIds.isEmpty()) {
+	        appendNetworkItems(hydrated, contextId, compact, home, childReadClauses, networkIds);
+	    }
+	    if (!shortcutIds.isEmpty()) {
+	        appendShortcutItems(hydrated, contextId, compact, home, type, childReadClauses, shortcutIds);
+	    }
+
+	    // Re-impose the key query's order: the hydration statements return their rows in whatever order
+	    // the planner produced. A key with no hydrated row was deleted, moved or unshared between the two
+	    // statements, which shortens the page rather than surfacing a row the caller may not see.
+	    Map<UUID, FileItemSummary> byId = new HashMap<>(hydrated.size() * 2);
+	    for (FileItemSummary s : hydrated) {
+	        byId.put(s.getUuid(), s);
+	    }
+	    List<FileItemSummary> page = new ArrayList<>(keys.size());
+	    for (ItemKey k : keys) {
+	        FileItemSummary s = byId.get(k.id());
+	        if (s != null) {
+	            page.add(s);
+	        }
+	    }
+	    return page;
+	}
+
+	private static List<UUID> idsOfType(List<ItemKey> keys, FileType type) {
+	    List<UUID> ids = new ArrayList<>();
+	    for (ItemKey k : keys) {
+	        if (k.type() == type) {
+	            ids.add(k.id());
+	        }
+	    }
+	    return ids;
+	}
+
+	/**
+	 * Binds a uuid array to one parameter. {@code = ANY(?)} rather than an {@code IN} list of
+	 * placeholders keeps the statement text constant across page sizes, so the plan cache holds one
+	 * entry instead of one per distinct id count.
+	 */
+	private void bindIdArray(PreparedStatement pst, int index, List<UUID> ids) throws SQLException {
+	    pst.setArray(index, db.createArrayOf("uuid", ids.toArray(new UUID[0])));
+	}
+
+	/**
+	 * The page's rows and their order, as one cheap statement: a UNION ALL over the three child tables
+	 * selecting nothing but the identity and sort key, so Postgres can serve it with a bounded top-N
+	 * sort. The WHERE of each arm — scope predicate, is_deleted, read clause, target_type — is built
+	 * exactly as the corresponding detail query builds it, so the page is drawn from the same row set
+	 * the caller would have seen unpaged.
+	 */
+	private List<ItemKey> listItemKeyPage(UUID contextId, boolean home, FileType type,
+	        ChildReadClauses childReadClauses, int start, int size) throws SQLException {
+
+	    List<String> arms = new ArrayList<>(3);
+	    // Parallel to the '?'s as they are written, drained by one loop below. Hand-numbering the
+	    // indexes would be a standing trap: contextId appears once per arm, and the arms present depend
+	    // on `type`.
+	    List<Object> binds = new ArrayList<>(5);
+
+	    // The ndex_user join is an INNER join in the detail queries and the schema's owner FKs are NOT
+	    // VALID, so a row with a missing owner is dropped there today. Keeping the join here keeps both
+	    // statements agreeing on the row set.
 	    if (type == null || type == FileType.FOLDER) {
+	        StringBuilder a = new StringBuilder(
+	                "SELECT f.\"UUID\" AS id, 'FOLDER'::text AS item_type, f.modification_time AS mtime"
+	                + " FROM folder f JOIN ndex_user u ON f.owneruuid = u.\"UUID\" WHERE ");
+	        a.append(home ? "f.owneruuid=? AND f.parent IS NULL" : "f.parent=?");
+	        a.append(" AND f.is_deleted=false");
+	        binds.add(contextId);
+	        if (childReadClauses != null) {
+	            a.append(" AND (").append(childReadClauses.folder()).append(")");
+	        }
+	        arms.add(a.toString());
+	    }
+
+	    if (type == null || type == FileType.NETWORK) {
+	        StringBuilder a = new StringBuilder(
+	                "SELECT n.\"UUID\" AS id, 'NETWORK'::text AS item_type, n.modification_time AS mtime"
+	                + " FROM network n JOIN ndex_user u ON n.owneruuid = u.\"UUID\" WHERE ");
+	        a.append(home ? "n.owneruuid=? AND n.parent IS NULL" : "n.parent=?");
+	        a.append(" AND n.is_deleted=false");
+	        binds.add(contextId);
+	        if (childReadClauses != null) {
+	            a.append(" AND (").append(childReadClauses.network()).append(")");
+	        }
+	        arms.add(a.toString());
+	    }
+
+	    // Deliberately not guarded by a type check, mirroring the detail path: `type` names the type of
+	    // thing the caller wants to see, and a shortcut TO a network is a way of seeing a network. So
+	    // type=NETWORK yields networks plus network-targeted shortcuts, and type=SHORTCUT yields nothing
+	    // at all, because target_type is only ever FOLDER or NETWORK.
+	    {
+	        StringBuilder a = new StringBuilder(
+	                "SELECT s.\"UUID\" AS id, 'SHORTCUT'::text AS item_type, s.modification_time AS mtime"
+	                + " FROM shortcut s JOIN ndex_user u ON s.owneruuid = u.\"UUID\" WHERE ");
+	        a.append(home ? "s.owneruuid=? AND s.parent IS NULL" : "s.parent=?");
+	        a.append(" AND s.is_deleted=false");
+	        binds.add(contextId);
+	        if (type != null) {
+	            a.append(" AND s.target_type=?");
+	            binds.add(type.toString());
+	        }
+	        if (childReadClauses != null) {
+	            a.append(" AND (").append(childReadClauses.shortcut()).append(")");
+	        }
+	        arms.add(a.toString());
+	    }
+
+	    // The ::text casts are load-bearing: an untyped literal is `unknown`, and type resolution across
+	    // UNION arms errors when it cannot unify. The id tiebreaker makes the order total even when
+	    // modification_time ties — a bulk import stamps many rows from one now() — without which
+	    // LIMIT/OFFSET over a tied block can repeat or skip rows between pages.
+	    String sql = "SELECT k.id, k.item_type FROM ( " + String.join(" UNION ALL ", arms) + " ) k"
+	            + " ORDER BY k.mtime DESC NULLS LAST, k.id, k.item_type LIMIT ? OFFSET ?";
+	    binds.add(Integer.valueOf(size));
+	    binds.add(Integer.valueOf(start));
+
+	    List<ItemKey> keys = new ArrayList<>();
+	    try (PreparedStatement pst = db.prepareStatement(sql)) {
+	        for (int i = 0; i < binds.size(); i++) {
+	            pst.setObject(i + 1, binds.get(i));
+	        }
+	        try (ResultSet rs = pst.executeQuery()) {
+	            while (rs.next()) {
+	                keys.add(new ItemKey((UUID) rs.getObject("id"),
+	                        FileType.valueOf(rs.getString("item_type"))));
+	            }
+	        }
+	    }
+	    return keys;
+	}
+
+	/**
+	 * Appends this folder's (or home root's) subfolders to {@code results}.
+	 *
+	 * @param restrictToIds when non-null, additionally narrows to these ids. The scope predicate is kept
+	 *        rather than replaced so the row set stays a subset of the unrestricted one: a row moved out
+	 *        of the folder between the key query and this one must not come back.
+	 */
+	private void appendFolderItems(List<FileItemSummary> results, UUID contextId, boolean compact,
+	        boolean home, ChildReadClauses childReadClauses, List<UUID> restrictToIds) throws SQLException {
 	        StringBuilder folderSql = new StringBuilder();
         folderSql.append("SELECT f.\"UUID\", f.name, f.modification_time, f.updated_by");
         if (compact) {
@@ -635,8 +836,14 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	        if (childReadClauses != null) {
 	            folderSql.append(" AND (").append(childReadClauses.folder()).append(")");
 	        }
+	        if (restrictToIds != null) {
+	            folderSql.append(" AND f.\"UUID\" = ANY(?)");
+	        }
 	        try (PreparedStatement pst = db.prepareStatement(folderSql.toString())) {
 	            pst.setObject(1, contextId);
+	            if (restrictToIds != null) {
+	                bindIdArray(pst, 2, restrictToIds);
+	            }
 	            try (ResultSet rs = pst.executeQuery()) {
 	                while (rs.next()) {
 	                    Map<String, Object> attr = null;
@@ -658,10 +865,11 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	                }
 	            }
 	        }
-	    }
+	}
 
-	    /* ────────────── 2) Networks ─────────────── */
-	    if (type == null || type == FileType.NETWORK) {
+	/** Networks. See {@link #appendFolderItems} for {@code restrictToIds}. */
+	private void appendNetworkItems(List<FileItemSummary> results, UUID contextId, boolean compact,
+	        boolean home, ChildReadClauses childReadClauses, List<UUID> restrictToIds) throws SQLException {
 	        StringBuilder networkSql = new StringBuilder();
         networkSql.append("SELECT n.\"UUID\", n.name, n.modification_time, n.updated_by, ");
         networkSql.append("n.readonly, n.error, n.warnings, n.iscomplete, n.is_validated, n.ndexdoi, n.certified");
@@ -688,8 +896,14 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	        if (childReadClauses != null) {
 	            networkSql.append(" AND (").append(childReadClauses.network()).append(")");
 	        }
+	        if (restrictToIds != null) {
+	            networkSql.append(" AND n.\"UUID\" = ANY(?)");
+	        }
 	        try (PreparedStatement pst = db.prepareStatement(networkSql.toString())) {
 	            pst.setObject(1, contextId);
+	            if (restrictToIds != null) {
+	                bindIdArray(pst, 2, restrictToIds);
+	            }
 	            try (ResultSet rs = pst.executeQuery()) {
 	                while (rs.next()) {
 	                    Map<String, Object> attr = null;
@@ -751,9 +965,16 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	                }
 	            }
 	        }
-	    }
+	}
 
-	    /* ────────────── 3) Shortcuts ─────────────── */
+	/**
+	 * Shortcuts. Unlike the folder and network queries this one has no type guard: {@code type} filters
+	 * the shortcut's TARGET instead, so a NETWORK listing includes network-targeted shortcuts.
+	 * See {@link #appendFolderItems} for {@code restrictToIds}.
+	 */
+	private void appendShortcutItems(List<FileItemSummary> results, UUID contextId, boolean compact,
+	        boolean home, FileType type, ChildReadClauses childReadClauses, List<UUID> restrictToIds)
+	        throws SQLException {
     String sql = "SELECT s.\"UUID\", s.name, s.modification_time, s.updated_by, s.visibility, s.owneruuid AS owner_id, u.user_name AS owner_name, "
         + "s.target_type, s.target, f.is_deleted AS target_folder_deleted, n.is_deleted AS target_network_deleted, "
         + "n.edgecount AS network_edgecount "
@@ -770,10 +991,18 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    if (childReadClauses != null) {
 	        sql += " AND (" + childReadClauses.shortcut() + ")";
 	    }
+	    if (restrictToIds != null) {
+	        sql += " AND s.\"UUID\" = ANY(?)";
+	    }
 	    try (PreparedStatement pst = db.prepareStatement(sql)) {
 	        pst.setObject(1, contextId);
+	        int idIndex = 2;
 	        if (type != null) {
 	            pst.setString(2, type.toString());
+	            idIndex = 3;
+	        }
+	        if (restrictToIds != null) {
+	            bindIdArray(pst, idIndex, restrictToIds);
 	        }
 	        try (ResultSet rs = pst.executeQuery()) {
 	            while (rs.next()) {
@@ -817,8 +1046,6 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	            }
 	        }
 	    }
-
-	    return results;
 	}
 	
 	@Override

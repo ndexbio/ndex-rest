@@ -80,6 +80,24 @@ Folder-item limit: Each folder has a limit of `100,000` items. Folders, Networks
 
 Folder-depth limit: A folder can’t contain more than `20` levels of nested folders.
 
+### Listing a folder's contents:
+
+`GET /v3/files/folders/{folderid}/list` takes `start` (zero-based row offset, default `0`) and `size`
+(page size). Because a folder-item limit of 100,000 is far more than any client wants in one response,
+these let a caller walk a large folder a page at a time.
+
+* **The default is unbounded.** Omitting `size` returns every item, so a call written before pagination
+existed behaves exactly as it did. Pass `-1`, or any non-positive value, to ask for all items
+explicitly.
+* Items are ordered by last modification time descending, nulls last, tie-broken by UUID. That order is
+total and stable, so concatenating consecutive pages reproduces one unbounded listing — without the
+tiebreaker, rows sharing a modification time could repeat or vanish between pages.
+* A `start` past the last item is an empty array with `200`, not an error. A negative `start` is `400`.
+* The response is a bare array and carries no total. `GET /v3/files/folders/{folderid}/count` gives the
+counts under the same visibility rules. The two are not directly comparable under a `type` filter,
+since `/list?type=network` also returns network-targeted shortcuts while `FileCount.network` does not
+count them.
+
 ### Sharing:
 
 * Only the owner can share their folders.   

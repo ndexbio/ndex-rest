@@ -33,12 +33,14 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import org.ndexbio.rest.services.v3.PagingParameters;
 import jakarta.annotation.security.PermitAll;
 import jakarta.servlet.http.HttpServletRequest;
 // NDEx's own BadRequestException, not the JAX-RS one: DefaultExceptionMapper is registered as
 // ExceptionMapper<Throwable>, so it intercepts a JAX-RS WebApplicationException and reports it as
 // a 500 "Uncaught exception" instead of the 400 the caller should see.
 import org.ndexbio.model.exceptions.BadRequestException;
+import jakarta.ws.rs.BeanParam;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.DefaultValue;
@@ -438,7 +440,26 @@ public class FolderServiceV3 extends NdexService {
 					Query Parameters:
 					- format: Optional. "compact" or "update" (default). Controls level of detail in response.
 					- type: Optional. Filter by type: "network", "folder", or null for all types.
+					A type of "shortcut" returns an empty array by design: the filter selects a shortcut's
+					TARGET, and a target is only ever a folder or a network. Conversely "network" returns
+					networks *and* network-targeted shortcuts.
 					- accesskey: Optional. Access key for anonymous access
+					- start: Optional. Zero-based index of the first item to return (default: 0). A negative
+					value is rejected with 400. A non-numeric value is a parameter-conversion failure and
+					surfaces as 404, not 400.
+					- size: Optional. Maximum number of items to return. **This endpoint defaults to
+					returning every item**, so an unparameterised call behaves exactly as it always has.
+					Pass -1 (or any non-positive value) to request all items explicitly.
+
+					Pagination:
+					- Items are ordered by last modification time descending, nulls last, tie-broken by UUID.
+					The order is stable across pages, so concatenating consecutive pages reproduces one
+					unbounded listing.
+					- A *start* beyond the last item returns 200 with an empty array, not an error. The same
+					applies to a page whose items were all deleted concurrently.
+					- The response carries no total. Use GET /v3/files/folders/{folderid}/count. Note the two
+					are not directly comparable under a type filter, since /list?type=network also returns
+					network-targeted shortcuts while FileCount.network does not count them.
 
 					Response Format:
 					- Compact: Basic metadata only
@@ -449,8 +470,10 @@ public class FolderServiceV3 extends NdexService {
 					"""
 	)
 	@ApiResponses(value = {
-	        @ApiResponse(responseCode = "200", description = "Items listed",
+	        @ApiResponse(responseCode = "200", description = "Items listed. The array is empty when the "
+	                + "folder has no visible children, or when 'start' is past the last item.",
 	                content = @Content(array = @ArraySchema(schema = @Schema(implementation = FileItemSummary.class)))),
+	        @ApiResponse(responseCode = "400", description = "Invalid pagination parameter (start < 0)"),
 	        @ApiResponse(responseCode = "401", description = "Unauthorized"),
 	        @ApiResponse(responseCode = "404", description = "Folder not found")
 	})
@@ -458,9 +481,16 @@ public class FolderServiceV3 extends NdexService {
 	        @PathParam("folderid")  final String folderIdStr,
 	        @QueryParam("format")   @DefaultValue("update") String format,
 	        @QueryParam("type")     String type,
-	        @QueryParam("accesskey") String accessKey
+	        @QueryParam("accesskey") String accessKey,
+	        @BeanParam PagingParameters paging
 	) throws Exception {
-		
+
+		paging.validate();
+		int start = paging.getStart();
+		// Unbounded unless the caller asks for a page: every existing client calls this endpoint with no
+		// pagination parameters, and PagingParameters' own 100 default would silently truncate them.
+		int size = paging.getSize(PagingParameters.UNBOUNDED_SIZE);
+
 		boolean compact = "compact".equalsIgnoreCase(format);
 		FileType fileType = null;
 		if (type != null) {
@@ -476,7 +506,7 @@ public class FolderServiceV3 extends NdexService {
 			}
 	        List<FileItemSummary> items;
 	        try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-	            items = dao.listRootItemsOfUser(userId, compact, fileType);
+	            items = dao.listRootItemsOfUser(userId, compact, fileType, start, size);
 	        }
 	        return items;
 	    }
@@ -490,12 +520,12 @@ public class FolderServiceV3 extends NdexService {
 	        // valid key is present, the caller must be able to read the folder and gets only the
 	        // children they may see.
 	        if (dao.accessKeyIsValid(folderUUID, accessKey)) {
-	            return dao.listItemsInFolderKeyFiltered(folderUUID, compact, fileType);
+	            return dao.listItemsInFolderKeyFiltered(folderUUID, compact, fileType, start, size);
 	        }
 	        if (!dao.isReadable(folderUUID, userId)) {
 	            throw new UnauthorizedOperationException("User doesn't have read access to this folder.");
 	        }
-	        return dao.listReadableItemsInFolder(folderUUID, compact, fileType, userId);
+	        return dao.listReadableItemsInFolder(folderUUID, compact, fileType, userId, start, size);
 	    }
 	}
 	
