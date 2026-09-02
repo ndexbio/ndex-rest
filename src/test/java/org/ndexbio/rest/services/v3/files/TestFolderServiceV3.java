@@ -494,7 +494,7 @@ public class TestFolderServiceV3 {
         expect(folderDAO.accessKeyIsValid(folderId, null)).andReturn(false);
         expect(folderDAO.isReadable(folderId, userId)).andReturn(true);
         // readable by the authenticated caller -> children filtered to what they may read
-        expect(folderDAO.listReadableItemsInFolder(folderId, false, null, userId)).andReturn(items);
+        expect(folderDAO.listReadableItemsInFolder(folderId, false, null, userId, 0, -1)).andReturn(items);
         folderDAO.close();
         expectLastCall();
         replay(folderDAO);
@@ -529,7 +529,7 @@ public class TestFolderServiceV3 {
         FolderDAO folderDAO = createMock(FolderDAO.class);
         // A valid access key -> key-filtered listing (folder/network children; shortcuts excluded).
         expect(folderDAO.accessKeyIsValid(folderId, "k")).andReturn(true).anyTimes();
-        expect(folderDAO.listItemsInFolderKeyFiltered(folderId, false, null)).andReturn(items);
+        expect(folderDAO.listItemsInFolderKeyFiltered(folderId, false, null, 0, -1)).andReturn(items);
         folderDAO.close();
         expectLastCall().anyTimes();
         replay(folderDAO);
@@ -585,7 +585,7 @@ public class TestFolderServiceV3 {
         items.add(new FileItemSummary(UUID.randomUUID(), FileType.FOLDER, "Sub"));
 
         FolderDAO folderDAO = createMock(FolderDAO.class);
-        expect(folderDAO.listRootItemsOfUser(userId, false, null)).andReturn(items);
+        expect(folderDAO.listRootItemsOfUser(userId, false, null, 0, -1)).andReturn(items);
         folderDAO.close();
         expectLastCall().anyTimes();
         replay(folderDAO);
@@ -598,6 +598,97 @@ public class TestFolderServiceV3 {
         MockHttpRequest request = MockHttpRequest.get("/v3/files/folders/home/list");
         dispatcher.invoke(request, response);
         assertEquals(Status.OK.getStatusCode(), response.getStatus());
+    }
+
+    /**
+     * The page window has to reach the DAO, which is where it is applied. If the endpoint dropped it,
+     * every one of these tests would still pass on the row set alone.
+     */
+    @Test
+    public void testListItemsInFolderForwardsThePageWindowToTheDao() throws Exception {
+        UUID folderId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        User user = new User();
+        user.setExternalId(userId);
+
+        expect(mockHttpServletRequest.getAttribute("User")).andReturn(user).anyTimes();
+        replay(mockHttpServletRequest);
+
+        List<FileItemSummary> items = new ArrayList<>();
+        items.add(new FileItemSummary(UUID.randomUUID(), FileType.NETWORK, "Net 1"));
+
+        FolderDAO folderDAO = createMock(FolderDAO.class);
+        expect(folderDAO.accessKeyIsValid(folderId, null)).andReturn(false);
+        expect(folderDAO.isReadable(folderId, userId)).andReturn(true);
+        expect(folderDAO.listReadableItemsInFolder(folderId, false, null, userId, 10, 5)).andReturn(items);
+        folderDAO.close();
+        expectLastCall().anyTimes();
+        replay(folderDAO);
+
+        DAOFactory daoFactory = createMock(DAOFactory.class);
+        expect(daoFactory.getFolderDAO()).andReturn(folderDAO).anyTimes();
+        replay(daoFactory);
+        Configuration.getInstance().setDAOFactory(daoFactory);
+
+        MockHttpRequest request =
+                MockHttpRequest.get("/v3/files/folders/" + folderId + "/list?start=10&size=5");
+        dispatcher.invoke(request, response);
+
+        assertEquals(Status.OK.getStatusCode(), response.getStatus());
+        verify(folderDAO);
+    }
+
+    /**
+     * Omitting the parameters must stay unbounded. Every existing client calls this endpoint bare, so a
+     * default page size here would silently truncate all of them.
+     */
+    @Test
+    public void testListItemsInFolderWithoutPagingParametersIsUnbounded() throws Exception {
+        UUID folderId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        User user = new User();
+        user.setExternalId(userId);
+
+        expect(mockHttpServletRequest.getAttribute("User")).andReturn(user).anyTimes();
+        replay(mockHttpServletRequest);
+
+        FolderDAO folderDAO = createMock(FolderDAO.class);
+        expect(folderDAO.accessKeyIsValid(folderId, null)).andReturn(false);
+        expect(folderDAO.isReadable(folderId, userId)).andReturn(true);
+        expect(folderDAO.listReadableItemsInFolder(folderId, false, null, userId, 0, -1))
+                .andReturn(new ArrayList<>());
+        folderDAO.close();
+        expectLastCall().anyTimes();
+        replay(folderDAO);
+
+        DAOFactory daoFactory = createMock(DAOFactory.class);
+        expect(daoFactory.getFolderDAO()).andReturn(folderDAO).anyTimes();
+        replay(daoFactory);
+        Configuration.getInstance().setDAOFactory(daoFactory);
+
+        MockHttpRequest request = MockHttpRequest.get("/v3/files/folders/" + folderId + "/list");
+        dispatcher.invoke(request, response);
+
+        assertEquals(Status.OK.getStatusCode(), response.getStatus());
+        verify(folderDAO);
+    }
+
+    /**
+     * A negative offset is rejected rather than clamped, so a caller computing it arithmetically finds
+     * out. Note this covers a numerically valid but out-of-range value; a non-numeric one is a
+     * parameter-conversion failure and surfaces as 404.
+     */
+    @Test
+    public void testListItemsInFolderRejectsANegativeStart() throws Exception {
+        UUID folderId = UUID.randomUUID();
+        expect(mockHttpServletRequest.getAttribute("User")).andReturn(null).anyTimes();
+        replay(mockHttpServletRequest);
+
+        MockHttpRequest request =
+                MockHttpRequest.get("/v3/files/folders/" + folderId + "/list?start=-1");
+        dispatcher.invoke(request, response);
+
+        assertEquals(Status.BAD_REQUEST.getStatusCode(), response.getStatus());
     }
 
     private static class TestFolderServiceV3NoIndex extends FolderServiceV3 {

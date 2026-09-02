@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [3.0.7] - unreleased
 
+### Added
+
+- **`GET /v3/files/folders/{folderid}/list` accepts `start` and `size`.** `start` is a zero-based row
+offset (default `0`); `size` caps the page. **This endpoint defaults to returning every item**, so an
+unparameterised call behaves exactly as before — pass `-1` (or any non-positive value) to request all
+items explicitly. Both also apply to the `"home"` folder literal and to key-authorized requests. The
+window is applied in the database rather than after fetching every row, so a page no longer pays for
+the children it does not return. [#168](https://github.com/ndexbio/ndex-rest/issues/168)
+  - A `start` beyond the last item returns `200` with an empty array, not an error. A negative `start`
+  is rejected with `400`.
+  - The response is still a bare array with no total. Use
+  `GET /v3/files/folders/{folderid}/count`, which applies the same visibility rules. Note the two are
+  not directly comparable under a `type` filter, since `/list?type=network` also returns
+  network-targeted shortcuts while `FileCount.network` does not count them.
+  - **Behavior change:** listings are now ordered by last modification time descending (nulls last,
+  tie-broken by UUID) instead of grouped folders-then-networks-then-shortcuts in an order the database
+  never pinned. One consistent order is required for paging to be coherent — otherwise `size=-1` and
+  `size=1000` would disagree about what the first page is. The rows returned are unchanged.
+  - The same ordering change reaches the v2 network-set member list
+  (`GET /v2/networkset/{networksetid}`), whose members are emitted in the order the folder listing
+  produced them.
+  - The MCP `get_folder` tool's `browse` mode is unaffected: it still returns every item and exposes no
+  paging parameters of its own.
+
 ### Fixed
 
 - **`GET /v2/user/{userid}/networksets` no longer scans nested folders.** A

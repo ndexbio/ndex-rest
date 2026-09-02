@@ -69,23 +69,71 @@ public interface FolderDAO extends AutoCloseable {
 	 */
 	FileCount getFolderChildCountsKeyFiltered(UUID folderId) throws SQLException;
 
-	List<FileItemSummary> listItemsInFolder(UUID folderId, boolean compact, FileType type) throws SQLException;
+	/**
+	 * The immediate children of a folder, newest first.
+	 *
+	 * <p>Ordering is {@code modification_time} descending with nulls last, tie-broken by uuid then type,
+	 * so the concatenation of consecutive pages equals one unbounded listing.</p>
+	 *
+	 * @param start zero-based row offset into that total order; a negative value is clamped to 0
+	 * @param size maximum rows to return. A non-positive value means UNBOUNDED — every matching row is
+	 *        returned, which is what the no-paging overload requests.
+	 */
+	List<FileItemSummary> listItemsInFolder(UUID folderId, boolean compact, FileType type,
+			int start, int size) throws SQLException;
+
+	/** Every immediate child, unbounded. */
+	default List<FileItemSummary> listItemsInFolder(UUID folderId, boolean compact, FileType type)
+			throws SQLException {
+		return listItemsInFolder(folderId, compact, type, 0, -1);
+	}
 
 	/**
-	 * Like {@link #listItemsInFolder(UUID, boolean, FileType)} but returns only the immediate children
-	 * the given viewer may read (PUBLIC/UNLISTED, plus items they own or are shared on).
+	 * Like {@link #listItemsInFolder(UUID, boolean, FileType, int, int)} but returns only the immediate
+	 * children the given viewer may read (PUBLIC/UNLISTED, plus items they own or are shared on).
 	 * @param viewerUserId the accessing user, or {@code null} for an anonymous caller
+	 * @param start zero-based row offset; a negative value is clamped to 0
+	 * @param size maximum rows to return; a non-positive value returns every matching row
 	 */
-	List<FileItemSummary> listReadableItemsInFolder(UUID folderId, boolean compact, FileType type, UUID viewerUserId) throws SQLException;
+	List<FileItemSummary> listReadableItemsInFolder(UUID folderId, boolean compact, FileType type,
+			UUID viewerUserId, int start, int size) throws SQLException;
+
+	/** Every readable immediate child, unbounded. */
+	default List<FileItemSummary> listReadableItemsInFolder(UUID folderId, boolean compact, FileType type,
+			UUID viewerUserId) throws SQLException {
+		return listReadableItemsInFolder(folderId, compact, type, viewerUserId, 0, -1);
+	}
 
 	/**
-	 * Like {@link #listItemsInFolder(UUID, boolean, FileType)} but for a request that provided a valid
-	 * access key for this folder: returns the immediate children the key validates (folders + networks,
-	 * plus same-owner NETWORK shortcuts whose target networks the key now unlocks — issue #133/#137).
+	 * Like {@link #listItemsInFolder(UUID, boolean, FileType, int, int)} but for a request that provided
+	 * a valid access key for this folder: returns the immediate children the key validates (folders +
+	 * networks, plus same-owner NETWORK shortcuts whose target networks the key now unlocks — issue
+	 * #133/#137).
+	 * @param start zero-based row offset; a negative value is clamped to 0
+	 * @param size maximum rows to return; a non-positive value returns every matching row
 	 */
-	List<FileItemSummary> listItemsInFolderKeyFiltered(UUID folderId, boolean compact, FileType type) throws SQLException;
+	List<FileItemSummary> listItemsInFolderKeyFiltered(UUID folderId, boolean compact, FileType type,
+			int start, int size) throws SQLException;
 
-	List<FileItemSummary> listRootItemsOfUser(UUID ownerId, boolean compact, FileType type) throws SQLException;
+	/** Every key-accessible immediate child, unbounded. */
+	default List<FileItemSummary> listItemsInFolderKeyFiltered(UUID folderId, boolean compact,
+			FileType type) throws SQLException {
+		return listItemsInFolderKeyFiltered(folderId, compact, type, 0, -1);
+	}
+
+	/**
+	 * The root-level (home directory) items owned by the given user, newest first.
+	 * @param start zero-based row offset; a negative value is clamped to 0
+	 * @param size maximum rows to return; a non-positive value returns every matching row
+	 */
+	List<FileItemSummary> listRootItemsOfUser(UUID ownerId, boolean compact, FileType type,
+			int start, int size) throws SQLException;
+
+	/** Every root-level item, unbounded. */
+	default List<FileItemSummary> listRootItemsOfUser(UUID ownerId, boolean compact, FileType type)
+			throws SQLException {
+		return listRootItemsOfUser(ownerId, compact, type, 0, -1);
+	}
 
 	/**
 	 * Counts the root-level (home directory) items owned by the given user — folders, networks,

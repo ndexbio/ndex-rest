@@ -448,6 +448,192 @@ public class TestPostgresFolderDAO {
         verify(resolver);
     }
 
+    // ── paging: the page is chosen in the database, not after the fact ───────
+    //
+    // The point of paging this listing is not payload size, it is that the detail queries evaluate a
+    // correlated WITH RECURSIVE is_shared per row. A page therefore has to be selected by a query that
+    // does none of that, or "pagination" just moves the same cost behind a subList.
+
+    /** Stubs the three read predicates readClausesFor always builds, whatever the type filter is. */
+    private static void expectReadClauses(FilePermissionResolver resolver, Set<UUID> granted) throws SQLException {
+        expect(resolver.grantedFolderIds(USER, Permissions.READ)).andReturn(granted);
+        expect(resolver.readableConditionSql(FileType.FOLDER, "f", USER, granted)).andReturn("F_READABLE");
+        expect(resolver.readableConditionSql(FileType.NETWORK, "n", USER, granted)).andReturn("N_READABLE");
+        expect(resolver.readableConditionSql(FileType.SHORTCUT, "s", USER, granted)).andReturn("S_READABLE");
+    }
+
+    /** A statement whose result set yields nothing. */
+    private static PreparedStatement emptyStatement() throws SQLException {
+        PreparedStatement pst = createNiceMock(PreparedStatement.class);
+        ResultSet rs = createNiceMock(ResultSet.class);
+        expect(rs.next()).andReturn(false).anyTimes();
+        expect(pst.executeQuery()).andReturn(rs).anyTimes();
+        replay(pst, rs);
+        return pst;
+    }
+
+    @Test
+    public void testPagedListingPicksThePageWithOneCheapOrderedKeyQuery() throws Exception {
+        Connection conn = createMock(Connection.class);
+        FilePermissionResolver resolver = createMock(FilePermissionResolver.class);
+        expectReadClauses(resolver, Collections.singleton(FOLDER));
+
+        Capture<String> sql = newCapture(org.easymock.CaptureType.ALL);
+        expect(conn.prepareStatement(capture(sql))).andReturn(emptyStatement());
+        replay(conn, resolver);
+
+        PostgresFolderDAO dao = new PostgresFolderDAO(conn);
+        dao.setPermissionResolver(resolver);
+        assertTrue(dao.listReadableItemsInFolder(FOLDER, false, null, USER, 40, 20).isEmpty());
+
+        // A start past the last row must not cost a hydration round trip.
+        assertEquals(1, sql.getValues().size());
+        String keySql = sql.getValues().get(0);
+
+        assertTrue("page must be ordered newest first, nulls last",
+                keySql.contains("ORDER BY k.mtime DESC NULLS LAST"));
+        // Without a tiebreaker, LIMIT/OFFSET over rows sharing a modification_time — a bulk import
+        // stamps many rows from one now() — can repeat or skip rows between consecutive pages.
+        assertTrue("the order must be total, not just by time", keySql.contains("k.id"));
+        assertTrue("the window must be applied in the database", keySql.contains("LIMIT ? OFFSET ?"));
+        assertTrue("all three child types compete for the page",
+                keySql.contains("FROM folder f") && keySql.contains("FROM network n")
+                        && keySql.contains("FROM shortcut s"));
+        // The whole reason this query exists: it must not carry the detail projection.
+        assertFalse("key query must not evaluate is_shared for rows outside the page",
+                keySql.contains("RECURSIVE chain"));
+        // The read predicates decide which rows the page is drawn from. On the hydration queries alone
+        // they would come too late — LIMIT would already have counted rows the caller cannot see.
+        assertTrue("key query must filter by what the caller may read",
+                keySql.contains("F_READABLE") && keySql.contains("N_READABLE")
+                        && keySql.contains("S_READABLE"));
+        verify(conn, resolver);
+    }
+
+    /**
+     * `type` names the type of thing the caller wants to see, and a shortcut TO a network is a way of
+     * seeing a network. The detail path has always worked that way; the key query has to agree, or a
+     * paged type=network listing would silently lose every network shortcut.
+     */
+    @Test
+    public void testPagedKeyQueryKeepsTheShortcutArmWhenFilteringByNetwork() throws Exception {
+        Connection conn = createMock(Connection.class);
+        FilePermissionResolver resolver = createMock(FilePermissionResolver.class);
+        expectReadClauses(resolver, Collections.singleton(FOLDER));
+
+        Capture<String> sql = newCapture(org.easymock.CaptureType.ALL);
+        expect(conn.prepareStatement(capture(sql))).andReturn(emptyStatement());
+        replay(conn, resolver);
+
+        PostgresFolderDAO dao = new PostgresFolderDAO(conn);
+        dao.setPermissionResolver(resolver);
+        dao.listReadableItemsInFolder(FOLDER, false, FileType.NETWORK, USER, 0, 10);
+
+        String keySql = sql.getValues().get(0);
+        assertFalse("a network listing has no folder arm", keySql.contains("FROM folder f"));
+        assertTrue(keySql.contains("FROM network n"));
+        assertTrue("network shortcuts are part of a network listing", keySql.contains("FROM shortcut s"));
+        assertTrue("the shortcut arm filters on the shortcut's TARGET type",
+                keySql.contains("s.target_type=?"));
+        verify(conn, resolver);
+    }
+
+    /**
+     * Hydration is per type and only for the types actually on the page, so a folder of nothing but
+     * networks costs one key query plus one detail query rather than four statements.
+     */
+    @Test
+    public void testPagedListingHydratesOnlyTheTypesPresentOnThePage() throws Exception {
+        Connection conn = createMock(Connection.class);
+        FilePermissionResolver resolver = createMock(FilePermissionResolver.class);
+        expectReadClauses(resolver, Collections.singleton(FOLDER));
+
+        // The page is one network.
+        PreparedStatement keyPst = createNiceMock(PreparedStatement.class);
+        ResultSet keyRs = createNiceMock(ResultSet.class);
+        expect(keyRs.next()).andReturn(true);
+        expect(keyRs.getObject("id")).andReturn(NETWORK);
+        expect(keyRs.getString("item_type")).andReturn("NETWORK");
+        expect(keyRs.next()).andReturn(false).anyTimes();
+        expect(keyPst.executeQuery()).andReturn(keyRs).anyTimes();
+        replay(keyPst, keyRs);
+
+        Capture<String> sql = newCapture(org.easymock.CaptureType.ALL);
+        expect(conn.prepareStatement(capture(sql))).andReturn(keyPst);
+        expect(conn.prepareStatement(capture(sql))).andReturn(emptyStatement());
+        expect(conn.createArrayOf(eq("uuid"), anyObject(UUID[].class))).andReturn(null);
+        replay(conn, resolver);
+
+        PostgresFolderDAO dao = new PostgresFolderDAO(conn);
+        dao.setPermissionResolver(resolver);
+        dao.listReadableItemsInFolder(FOLDER, false, null, USER, 0, 10);
+
+        assertEquals("key query plus one hydration, not one per type", 2, sql.getValues().size());
+        String detailSql = sql.getValues().get(1);
+        assertTrue("only networks were on the page", detailSql.contains("FROM network n"));
+        assertTrue("hydration narrows to the page's ids", detailSql.contains("n.\"UUID\" = ANY(?)"));
+        // Keeping the scope predicate rather than replacing it is what stops a row moved out of the
+        // folder between the two statements from reappearing in the page.
+        assertTrue("hydration keeps the folder scope predicate", detailSql.contains("n.parent=?"));
+        assertTrue("hydration still applies the caller's read predicate", detailSql.contains("N_READABLE"));
+        verify(conn, resolver);
+    }
+
+    /**
+     * Unbounded is the default every pre-paging caller takes. It must keep issuing the same statements
+     * it always did — no window, no id filter — so that adding paging cannot have changed what an
+     * unparameterised listing returns.
+     */
+    @Test
+    public void testUnboundedListingStillIssuesThePlainChildQueries() throws Exception {
+        Connection conn = createMock(Connection.class);
+        FilePermissionResolver resolver = createMock(FilePermissionResolver.class);
+        expectReadClauses(resolver, Collections.singleton(FOLDER));
+
+        Capture<String> sql = newCapture(org.easymock.CaptureType.ALL);
+        for (int i = 0; i < 3; i++) {
+            expect(conn.prepareStatement(capture(sql))).andReturn(emptyStatement());
+        }
+        replay(conn, resolver);
+
+        PostgresFolderDAO dao = new PostgresFolderDAO(conn);
+        dao.setPermissionResolver(resolver);
+        dao.listReadableItemsInFolder(FOLDER, false, null, USER, 0, -1);
+
+        assertEquals(3, sql.getValues().size());
+        for (String s : sql.getValues()) {
+            // "LIMIT ? OFFSET ?" specifically: the is_shared EXISTS subqueries carry their own LIMIT 1.
+            assertFalse("unbounded must not window in SQL: " + s, s.contains("LIMIT ? OFFSET ?"));
+            assertFalse("unbounded hydrates nothing by id: " + s, s.contains("= ANY(?)"));
+        }
+        verify(conn, resolver);
+    }
+
+    /**
+     * A shortcut's target is only ever a FOLDER or a NETWORK, so type=SHORTCUT has always matched
+     * nothing. Paging must not turn that empty answer into an error or into every shortcut.
+     */
+    @Test
+    public void testPagedListingByShortcutTypeStaysEmpty() throws Exception {
+        Connection conn = createMock(Connection.class);
+        FilePermissionResolver resolver = createMock(FilePermissionResolver.class);
+        expectReadClauses(resolver, Collections.singleton(FOLDER));
+
+        Capture<String> sql = newCapture(org.easymock.CaptureType.ALL);
+        expect(conn.prepareStatement(capture(sql))).andReturn(emptyStatement());
+        replay(conn, resolver);
+
+        PostgresFolderDAO dao = new PostgresFolderDAO(conn);
+        dao.setPermissionResolver(resolver);
+        assertTrue(dao.listReadableItemsInFolder(FOLDER, false, FileType.SHORTCUT, USER, 0, 10).isEmpty());
+
+        String keySql = sql.getValues().get(0);
+        assertFalse(keySql.contains("FROM folder f"));
+        assertFalse(keySql.contains("FROM network n"));
+        assertTrue(keySql.contains("s.target_type=?"));
+        verify(conn, resolver);
+    }
+
     // Note: there is no folder-audience test here. Solr moved from index-time access lists to
     // query-time scope filtering, which removed getFolderPermissionsWithUsernames along with its only
     // caller. The surviving network audience path (getAllMembershipsOnNetwork -> effectiveMembers, still

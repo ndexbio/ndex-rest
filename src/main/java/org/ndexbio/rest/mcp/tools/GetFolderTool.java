@@ -13,6 +13,7 @@ import org.ndexbio.model.object.User;
 import org.ndexbio.rest.mcp.McpSchema;
 import org.ndexbio.rest.mcp.ToolsService;
 import org.ndexbio.rest.mcp.ValidationService;
+import org.ndexbio.rest.services.v3.PagingParameters;
 import org.ndexbio.rest.services.v3.files.FolderServiceV3;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -193,9 +194,12 @@ public class GetFolderTool {
                     if (format == null) format = "update";
                     String type = MAPPER.convertValue(args.get("type"), String.class);
                     String accessKey = MAPPER.convertValue(args.get("accessKey"), String.class);
+                    // Unbounded, matching this tool's previous behaviour; browse exposes no paging
+                    // parameters of its own.
                     List<FileItemSummary> items =
                             new FolderServiceV3(httpReq)
-                                    .listItemsInFolder(folderId, format, type, accessKey);
+                                    .listItemsInFolder(folderId, format, type, accessKey,
+                                            new PagingParameters(0, PagingParameters.UNBOUNDED_SIZE));
                     return CallToolResult.builder()
                             .addTextContent(MAPPER.writeValueAsString(items))
                             .build();

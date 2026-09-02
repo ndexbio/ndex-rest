@@ -1431,6 +1431,86 @@ F10_KEY_NET=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count?acces
   || api_fail "access-key view wrong: net=${F10_KEY_NET}, list=${F10_KEY_LIST:0:400}"
 api_pass "anon + access key → /list all children (incl. PRIVATE); /count network=2"
 
+# ── STEP: Pagination on the folder listing (#168) ────────────────────────────
+# /list gained start/size. The contract easiest to break silently is the one asserted first: an
+# unparameterised call must still return everything, because every existing client calls it bare —
+# the ndex3 web app, the MCP browse tool, and most of this script. The rest pins the window itself
+# and the two edge answers that must not become errors.
+#
+# The F10 folder is the fixture at this point: exactly two children, both networks, caller is owner.
+# Entries carry no nested objects in the default format=update view (see the #161 note above), so a
+# count of '},{' separators is a reliable entry count without jq.
+step "Folder listing pagination: start/size (#168)"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: GET .../list (owner, no paging params) — must stay unbounded"
+P168_ALL=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list")
+{ echo "${P168_ALL}" | grep -q "${V3_PUB_UUID}" && echo "${P168_ALL}" | grep -q "${V3_PRIV_UUID}"; } \
+  || api_fail "#168: bare /list must stay unbounded. Body: ${P168_ALL:0:400}"
+api_pass "GET .../list with no paging params → still every child (backward compatible)"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: GET .../list?size=-1 — explicit 'all items'"
+P168_NEG1=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list?size=-1")
+{ echo "${P168_NEG1}" | grep -q "${V3_PUB_UUID}" && echo "${P168_NEG1}" | grep -q "${V3_PRIV_UUID}"; } \
+  || api_fail "#168: size=-1 must return every item. Body: ${P168_NEG1:0:400}"
+api_pass "GET .../list?size=-1 → every item (matches the bare call)"
+
+# Two single-item pages must PARTITION the folder: one child each, and not the same child twice.
+# Without a stable tiebreaker in the ORDER BY this is exactly what breaks, and it breaks silently.
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: GET .../list?start=0&size=1 and ?start=1&size=1 — disjoint pages"
+P168_P1=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list?start=0&size=1")
+P168_P2=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list?start=1&size=1")
+P168_P1_PUB=$(echo "${P168_P1}" | grep -c "${V3_PUB_UUID}" || true)
+P168_P1_PRIV=$(echo "${P168_P1}" | grep -c "${V3_PRIV_UUID}" || true)
+P168_P2_PUB=$(echo "${P168_P2}" | grep -c "${V3_PUB_UUID}" || true)
+P168_P2_PRIV=$(echo "${P168_P2}" | grep -c "${V3_PRIV_UUID}" || true)
+[[ $((P168_P1_PUB + P168_P1_PRIV)) == "1" && $((P168_P2_PUB + P168_P2_PRIV)) == "1" ]] \
+  || api_fail "#168: each size=1 page must hold exactly one child. p1=${P168_P1:0:200} p2=${P168_P2:0:200}"
+[[ $((P168_P1_PUB + P168_P2_PUB)) == "1" && $((P168_P1_PRIV + P168_P2_PRIV)) == "1" ]] \
+  || api_fail "#168: consecutive pages repeated or skipped a child. p1=${P168_P1:0:200} p2=${P168_P2:0:200}"
+api_pass "GET .../list?start&size → consecutive pages partition the folder (no repeat, no gap)"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: GET .../list?start=999 — past the end is an empty array, not an error"
+P168_PAST_RESP=$(curl -s -w "\n%{http_code}" -u "${TEST_USER}:${TEST_PASS}" \
+  "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list?start=999")
+P168_PAST_HTTP=$(echo "${P168_PAST_RESP}" | tail -1); P168_PAST_BODY=$(echo "${P168_PAST_RESP}" | head -1)
+{ [[ "${P168_PAST_HTTP}" == "200" ]] && echo "${P168_PAST_BODY}" | grep -qE '^\[[[:space:]]*\]$'; } \
+  || api_fail "#168: start past the end → HTTP ${P168_PAST_HTTP}, body ${P168_PAST_BODY:0:200} (expected 200 and [])"
+api_pass "GET .../list?start=999 → 200 with an empty array (not 404, not an error)"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: GET .../list?start=-1 — out-of-range offset rejected"
+P168_BAD_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -u "${TEST_USER}:${TEST_PASS}" \
+  "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list?start=-1")
+[[ "${P168_BAD_HTTP}" == "400" ]] || api_fail "#168: start=-1 → HTTP ${P168_BAD_HTTP} (expected 400)"
+api_pass "GET .../list?start=-1 → 400"
+
+# The endpoint has three service branches — home, access-key, and readable — and the window has to be
+# threaded through all of them. The assertions above only exercised the readable one.
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: GET .../folders/home/list?size=1 — home branch honors the window"
+P168_HOME_RESP=$(curl -s -w "\n%{http_code}" -u "${TEST_USER}:${TEST_PASS}" \
+  "${BASE_URL}/v3/files/folders/home/list?size=1")
+P168_HOME_HTTP=$(echo "${P168_HOME_RESP}" | tail -1); P168_HOME_BODY=$(echo "${P168_HOME_RESP}" | head -1)
+# '|| true': under `set -o pipefail` a grep that matches nothing exits 1 and would abort the run.
+P168_HOME_SEPS=$(echo "${P168_HOME_BODY}" | grep -o '},[[:space:]]*{' | wc -l | tr -d ' ' || true)
+{ [[ "${P168_HOME_HTTP}" == "200" ]] && [[ "${P168_HOME_SEPS}" == "0" ]]; } \
+  || api_fail "#168: home/list?size=1 → HTTP ${P168_HOME_HTTP}, ${P168_HOME_SEPS} separators. Body: ${P168_HOME_BODY:0:300}"
+api_pass "GET /v3/files/folders/home/list?size=1 → at most one entry (home branch honors size)"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: GET .../list?accesskey&size=1 (anon) — access-key branch honors the window"
+P168_KEY_PAGE=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list?accesskey=${F10_KEY}&size=1")
+P168_KEY_SEPS=$(echo "${P168_KEY_PAGE}" | grep -o '},[[:space:]]*{' | wc -l | tr -d ' ' || true)
+[[ "${P168_KEY_SEPS}" == "0" ]] \
+  || api_fail "#168: key-filtered /list?size=1 returned ${P168_KEY_SEPS} separators. Body: ${P168_KEY_PAGE:0:300}"
+{ echo "${P168_KEY_PAGE}" | grep -q "${V3_PUB_UUID}" || echo "${P168_KEY_PAGE}" | grep -q "${V3_PRIV_UUID}"; } \
+  || api_fail "#168: key-filtered /list?size=1 returned no child. Body: ${P168_KEY_PAGE:0:300}"
+api_pass "GET .../list?accesskey&size=1 → exactly one child (access-key branch honors size)"
+
 # ── STEP: Access key follows the folder hierarchy + same-owner shortcut resolution (G11, #133/#137) ──
 # A network is reachable by an ANCESTOR folder's access key (accrual up the folder chain), AND — for
 # backwards compatibility with the v3 networkset migration — by a SAME-OWNER NETWORK shortcut that lives
