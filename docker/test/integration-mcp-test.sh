@@ -762,6 +762,32 @@ echo "${MCP_JSON}" | grep -q "${MCP_SUBFOLDER_ID}" \
   || api_fail "get_folder mode=list omitted nested folder ${MCP_SUBFOLDER_ID}; the v2 home-root scoping leaked into the MCP tool: ${MCP_JSON:0:400}"
 api_pass "get_folder mode=list returns folders at any depth, nested folder included"
 
+# browse defaults to format=compact (#163). compact is the FULLER view despite the name: it carries
+# visibility, description and folder creationTime, which the leaner "update" view omits. Asserting the
+# difference between the two is what proves the default actually changed, rather than just asserting a
+# field is present -- the nested folder's visibility is non-null either way.
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: get_folder mode=browse, no format (must default to the fuller compact view)"
+mcp_call '{"jsonrpc":"2.0","id":"mcp-29c","method":"tools/call","params":{"name":"get_folder","arguments":{"mode":"browse","folderId":{"waived":false,"parameter":"'"${MCP_FOLDER_ID}"'"}}}}' \
+  "-u ${TEST_USER}:${TEST_PASS}"
+mcp_pass "get_folder mode=browse with no format (auth)"
+echo "${MCP_JSON}" | grep -q "${MCP_SUBFOLDER_ID}" \
+  || api_fail "get_folder mode=browse omitted the nested folder ${MCP_SUBFOLDER_ID}: ${MCP_JSON:0:400}"
+echo "${MCP_JSON}" | grep -q "visibility" \
+  || api_fail "get_folder mode=browse did not carry visibility; the default is not compact: ${MCP_JSON:0:400}"
+api_pass "get_folder mode=browse defaults to compact and carries visibility"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: get_folder mode=browse with explicit format=update (leaner view still honoured)"
+mcp_call '{"jsonrpc":"2.0","id":"mcp-29d","method":"tools/call","params":{"name":"get_folder","arguments":{"mode":"browse","format":"update","folderId":{"waived":false,"parameter":"'"${MCP_FOLDER_ID}"'"}}}}' \
+  "-u ${TEST_USER}:${TEST_PASS}"
+mcp_pass "get_folder mode=browse with format=update (auth)"
+echo "${MCP_JSON}" | grep -q "${MCP_SUBFOLDER_ID}" \
+  || api_fail "get_folder mode=browse format=update omitted the nested folder: ${MCP_JSON:0:400}"
+echo "${MCP_JSON}" | grep -q "visibility" \
+  && api_fail "format=update must omit visibility; the two views are no longer distinct: ${MCP_JSON:0:400}"
+api_pass "explicit format=update still returns the leaner view (no visibility)"
+
 CALL_NUM=$((CALL_NUM+1))
 echo "  API call ${CALL_NUM}: manage_folder mode=delete nested folder (auth)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-29b","method":"tools/call","params":{"name":"manage_folder","arguments":{"mode":"delete","folderId":{"waived":false,"parameter":"'"${MCP_SUBFOLDER_ID}"'"}}}}' \

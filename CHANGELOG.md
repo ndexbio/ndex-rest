@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [3.0.7] - unreleased
 
+### Breaking Changes
+
+- **`GET /v3/files/folders` and `GET /v3/files/shortcuts` have been removed.** Both listed everything
+the caller owned at any depth behind a `limit` with no pagination, which is what made them worth
+retiring. Use `GET /v3/files/folders/{folderid}/list` instead — it accepts the `home` literal for the
+caller's top level, paginates with `start`/`size`, and enforces per-child visibility, which the removed
+endpoints never did. [#163](https://github.com/ndexbio/ndex-rest/issues/163)
+  - Your folders: `GET /v3/files/folders/home/list?type=folder`, keeping entries whose `type` is
+  `folder` — folder-targeted shortcuts are returned alongside them by design.
+  - Your shortcuts: `GET /v3/files/folders/home/list` with **no** `type` filter, keeping entries whose
+  `type` is `shortcut`.
+  - **`?type=shortcut` returns an empty array by design** — the trap a quick migration will hit.
+  `type` asks *what kind of thing do you want to see*, and a shortcut is a way of seeing something
+  rather than a thing in its own right. So `type=folder` returns folders **and** shortcuts pointing at
+  folders, `type=network` returns networks **and** shortcuts pointing at networks, and nothing ever
+  points at a shortcut — hence the empty array. To list shortcuts, omit `type` and filter the results
+  yourself, as in the bullet above.
+  - **Behavior change:** the replacement is per-level, not flat any-depth — one call returns only the
+  items directly under the folder named, so enumerating a whole tree now costs one call per folder. It
+  also returns `FileItemSummary` rather than `NdexFolder`/`NdexShortcut`.
+  - Unaffected: the `POST` creates on the same two paths, and the MCP `get_folder` tool's `list` mode,
+  which still returns every folder the caller owns at any depth. (`browse` mode does change — see
+  Changed.)
+  - Client impact: the Java client is updated separately to stop calling these endpoints. The Python
+  `ndex2-client` and the `ndex3` web app never called them and are unaffected.
+
 ### Added
 
 - **`GET /v3/files/folders/{folderid}/list` accepts `start` and `size`.** `start` is a zero-based row
@@ -31,7 +57,35 @@ the children it does not return. [#168](https://github.com/ndexbio/ndex-rest/iss
   - The MCP `get_folder` tool's `browse` mode is unaffected: it still returns every item and exposes no
   paging parameters of its own.
 
+- **Folder entries in `GET /v3/files/folders/{folderid}/list?format=compact` now carry `creationTime`
+in `attributes`.** It arrives as epoch milliseconds — a plain JSON number, not a formatted timestamp —
+inside the generic `attributes` map next to `description`, because `FileItemSummary` has no
+`creationTime` field of its own in any released `ndex-object-model`. Purely additive: no existing field
+changed, moved or was removed. [#163](https://github.com/ndexbio/ndex-rest/issues/163)
+  - **Why:** it is the one field the removed `GET /v3/files/folders` returned that the folder listing
+  did not, so the endpoint now standing in for it conveys the same information.
+  - **Where you will and will not see it:** folders only, and only under `format=compact` — the
+  default `update` view omits it, along with `description` and `visibility` (see Fixed, below).
+  Network and shortcut entries are deliberately untouched: nothing was taken away from them, and no
+  endpoint returning *their* creation time was removed, so there is nothing to make up for.
+
+### Changed
+
+- **The MCP `get_folder` tool's `browse` mode now defaults to `format=compact`** (was `update`), so
+its items carry `description`, `visibility`, folder `creationTime` and network `edgecount` — the
+metadata the tool always advertised but its own default suppressed. This is an output-model change for
+MCP clients: strictly more fields, none removed or renamed. An explicit `format` argument is honoured
+exactly as before, and the REST endpoint's own default is unchanged.
+[#163](https://github.com/ndexbio/ndex-rest/issues/163)
+
 ### Fixed
+
+- **The `format` parameter's two views were documented backwards.** `compact` is the **fuller** view —
+it adds `description` and `visibility` (plus `edgecount` for networks and `creationTime` for folders) —
+while `update`, the endpoint default, omits them. The Swagger description on
+`GET /v3/files/folders/{folderid}/list` and the `get_folder` tool schema both claimed the reverse.
+Documentation only; `/list` behavior is unchanged and callers passing an explicit `format` see no
+difference. [#163](https://github.com/ndexbio/ndex-rest/issues/163)
 
 - **`GET /v2/user/{userid}/networksets` no longer scans nested folders.** A
 network set is always created at the owner's home root, so the listing is now scoped there and the
@@ -39,8 +93,9 @@ nested folders are skipped. `networkSetCount` from
 `GET /v2/user/{userid}/networkcount` is scoped the same way, so it still equals the unpaged length
 of the list. [#164](https://github.com/ndexbio/ndex-rest/issues/164)
   - **Behavior change:** a folder nested inside another folder is no longer listed or counted.
-  - `GET /v3/files/folders/` and the MCP `get_folder` tool's `list` mode are unaffected — both still
-  return every folder the user owns, at any depth.
+  - The MCP `get_folder` tool's `list` mode is unaffected — it still returns every folder the user
+  owns, at any depth. (`GET /v3/files/folders/` was also unaffected by this fix, but has since been
+  removed outright — see Breaking Changes.)
 
 ## [3.0.6] - 2026-08-28
 

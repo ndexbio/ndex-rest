@@ -9,9 +9,20 @@ import io.modelcontextprotocol.server.McpSyncServerExchange;
 import io.modelcontextprotocol.spec.McpSchema;
 import jakarta.servlet.http.HttpServletRequest;
 import org.easymock.EasyMock;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.ndexbio.common.models.dao.DAOFactory;
+import org.ndexbio.common.models.dao.FolderDAO;
+import org.ndexbio.model.object.FileItemSummary;
+import org.ndexbio.model.object.NdexFolder;
+import org.ndexbio.model.object.User;
+import org.ndexbio.rest.Configuration;
+import org.ndexbio.rest.TestConfigHelper;
 import org.ndexbio.rest.mcp.ToolsService;
+
+import java.util.ArrayList;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -20,10 +31,35 @@ class TestGetFolderTool {
     private ToolsService toolsService;
     private GetFolderTool tool;
 
+    @BeforeAll
+    static void initConfiguration() throws Exception {
+        TestConfigHelper.initIfNeeded();
+    }
+
     @BeforeEach
     void setUp() {
         toolsService = new ToolsService();
         tool = new GetFolderTool(toolsService);
+    }
+
+    /** Wires a mock FolderDAO behind the Configuration singleton and returns it for expectations. */
+    private static FolderDAO installFolderDAO() throws Exception {
+        FolderDAO dao = EasyMock.mock(FolderDAO.class);
+        dao.close();
+        EasyMock.expectLastCall().anyTimes();
+        DAOFactory factory = EasyMock.mock(DAOFactory.class);
+        EasyMock.expect(factory.getFolderDAO()).andReturn(dao).anyTimes();
+        EasyMock.replay(factory);
+        Configuration.getInstance().setDAOFactory(factory);
+        return dao;
+    }
+
+    private static McpSyncServerExchange exchangeFor(HttpServletRequest httpReq) {
+        McpTransportContext ctx = McpTransportContext.create(Map.of("ndexRequest", httpReq));
+        McpSyncServerExchange exchange = EasyMock.mock(McpSyncServerExchange.class);
+        EasyMock.expect(exchange.transportContext()).andReturn(ctx).once();
+        EasyMock.replay(exchange);
+        return exchange;
     }
 
     // --- Tool spec metadata ---
@@ -142,6 +178,129 @@ class TestGetFolderTool {
         assertEquals("401 Unauthorized",
                 ((McpSchema.TextContent) result.content().get(0)).text());
         EasyMock.verify(httpReq, exchange);
+    }
+
+    // --- mode=list composes via the DAO (issue #163: the REST handler it used to call is gone) ---
+
+    @Test
+    void handle_modeList_composesViaDaoAndSerializes() throws Exception {
+        UUID userId = UUID.randomUUID();
+        User user = new User();
+        user.setExternalId(userId);
+
+        NdexFolder folder = new NdexFolder();
+        folder.setName("My Project");
+        List<NdexFolder> folders = new ArrayList<>();
+        folders.add(folder);
+
+        FolderDAO dao = installFolderDAO();
+        EasyMock.expect(dao.listFoldersOfUser(userId, 25)).andReturn(folders).once();
+        EasyMock.replay(dao);
+
+        HttpServletRequest httpReq = EasyMock.mock(HttpServletRequest.class);
+        EasyMock.expect(httpReq.getAttribute("User")).andReturn(user).anyTimes();
+        EasyMock.replay(httpReq);
+
+        McpSchema.CallToolResult result =
+                invokeHandler(exchangeFor(httpReq), Map.of("mode", "list", "limit", 25));
+
+        assertFalse(result.isError());
+        assertTrue(((McpSchema.TextContent) result.content().get(0)).text().contains("My Project"));
+        EasyMock.verify(dao);
+    }
+
+    @Test
+    void handle_modeList_defaultsLimitTo100() throws Exception {
+        UUID userId = UUID.randomUUID();
+        User user = new User();
+        user.setExternalId(userId);
+
+        FolderDAO dao = installFolderDAO();
+        EasyMock.expect(dao.listFoldersOfUser(userId, 100)).andReturn(new ArrayList<>()).once();
+        EasyMock.replay(dao);
+
+        HttpServletRequest httpReq = EasyMock.mock(HttpServletRequest.class);
+        EasyMock.expect(httpReq.getAttribute("User")).andReturn(user).anyTimes();
+        EasyMock.replay(httpReq);
+
+        invokeHandler(exchangeFor(httpReq), Map.of("mode", "list"));
+
+        EasyMock.verify(dao);
+    }
+
+    @Test
+    void handle_modeList_noUser_neverOpensDao() throws Exception {
+        FolderDAO dao = installFolderDAO();
+        EasyMock.replay(dao); // no calls expected
+
+        HttpServletRequest httpReq = EasyMock.mock(HttpServletRequest.class);
+        EasyMock.expect(httpReq.getAttribute("User")).andReturn(null).anyTimes();
+        EasyMock.replay(httpReq);
+
+        McpSchema.CallToolResult result = invokeHandler(exchangeFor(httpReq), Map.of("mode", "list"));
+
+        assertTrue(result.isError());
+        EasyMock.verify(dao);
+    }
+
+    // --- mode=browse defaults to the fuller "compact" view (issue #163) ---
+
+    @Test
+    void handle_modeBrowse_defaultsToCompact() throws Exception {
+        UUID userId = UUID.randomUUID();
+        User user = new User();
+        user.setExternalId(userId);
+
+        FolderDAO dao = installFolderDAO();
+        // compact=true is the assertion: it is what "format" resolves to when the caller omits it.
+        EasyMock.expect(dao.listRootItemsOfUser(EasyMock.eq(userId), EasyMock.eq(true),
+                        EasyMock.isNull(), EasyMock.eq(0), EasyMock.eq(-1)))
+                .andReturn(new ArrayList<FileItemSummary>()).once();
+        EasyMock.replay(dao);
+
+        HttpServletRequest httpReq = EasyMock.mock(HttpServletRequest.class);
+        EasyMock.expect(httpReq.getAttribute("User")).andReturn(user).anyTimes();
+        EasyMock.replay(httpReq);
+
+        invokeHandler(exchangeFor(httpReq),
+                Map.of("mode", "browse", "folderId", Map.of("waived", false, "parameter", "home")));
+
+        EasyMock.verify(dao);
+    }
+
+    @Test
+    void handle_modeBrowse_explicitUpdateStillHonoured() throws Exception {
+        UUID userId = UUID.randomUUID();
+        User user = new User();
+        user.setExternalId(userId);
+
+        FolderDAO dao = installFolderDAO();
+        EasyMock.expect(dao.listRootItemsOfUser(EasyMock.eq(userId), EasyMock.eq(false),
+                        EasyMock.isNull(), EasyMock.eq(0), EasyMock.eq(-1)))
+                .andReturn(new ArrayList<FileItemSummary>()).once();
+        EasyMock.replay(dao);
+
+        HttpServletRequest httpReq = EasyMock.mock(HttpServletRequest.class);
+        EasyMock.expect(httpReq.getAttribute("User")).andReturn(user).anyTimes();
+        EasyMock.replay(httpReq);
+
+        invokeHandler(exchangeFor(httpReq),
+                Map.of("mode", "browse", "format", "update",
+                       "folderId", Map.of("waived", false, "parameter", "home")));
+
+        EasyMock.verify(dao);
+    }
+
+    @Test
+    void inputSchema_formatDeclaresCompactAsDefault() {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> formatEntry =
+                (Map<String, Object>) tool.toSpec().tool().inputSchema().properties().get("format");
+        String desc = (String) formatEntry.get("description");
+        assertTrue(desc.contains("Defaults to compact"),
+                "format description must name compact as the default so docs and code agree");
+        assertFalse(desc.contains("update (default)"),
+                "the old inverted claim must be gone");
     }
 
     @Test

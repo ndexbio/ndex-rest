@@ -3,7 +3,6 @@ package org.ndexbio.rest.services.v3.files;
 import java.io.IOException;
 import java.net.URI;
 import java.sql.SQLException;
-import java.util.List;
 import java.util.UUID;
 
 import org.ndexbio.common.models.dao.ShortcutDAO;
@@ -40,7 +39,6 @@ import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.Context;
-import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
 @Path("/v3/files/shortcuts")
@@ -229,41 +227,5 @@ public class ShortcutServiceV3 extends NdexService {
 		}
 	}
 	
-	@GET
-	@Path("/")
-	@Produces(MediaType.APPLICATION_JSON)
-	@Operation(
-			summary = "List my Shortcuts",
-			description = """
-                          Lists all shortcuts owned by the current user.
-                          
-                          Database Tables:
-                          - shortcut: Queries where owneruuid=userId AND is_deleted=false
-                          
-                          Query Parameters:
-                          - limit: Maximum number of shortcuts to return (default: 100)
-                          
-                          Edge Cases:
-                          - No shortcuts: Returns empty array
-                          
-                          Response:
-                          - 200 OK: Array of shortcut metadata
-                          - 401 Unauthorized: Not authenticated
-                          """
-		)
-	public List<NdexShortcut> listMyShortcuts(@QueryParam("limit") @DefaultValue("100") int limit) throws Exception {
-
-	    UUID userId = getLoggedInUserId();
-	    if (userId == null) {
-	        throw new UnauthorizedOperationException("You must be logged in to list your shortcuts.");
-	    }
-
-	    List<NdexShortcut> shortcuts;
-	    try (ShortcutDAO dao = Configuration.getInstance().getDAOFactory().getShortcutDAO()) {
-	        shortcuts = dao.listShortcutsOfUser(userId, limit);
-	    }
-
-	    return shortcuts;
-	}
 
 }

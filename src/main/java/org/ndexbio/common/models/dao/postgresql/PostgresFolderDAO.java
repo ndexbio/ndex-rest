@@ -817,7 +817,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	        StringBuilder folderSql = new StringBuilder();
         folderSql.append("SELECT f.\"UUID\", f.name, f.modification_time, f.updated_by");
         if (compact) {
-            folderSql.append(", f.description, f.visibility");
+            folderSql.append(", f.description, f.visibility, f.creation_time");
         }
         folderSql.append(", f.owneruuid AS owner_id, u.user_name AS owner_name");
         // is_shared reflects EFFECTIVE sharing: a grant on any ancestor exposes this folder too, so a
@@ -850,6 +850,10 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	                    if (compact) {
                         attr = new HashMap<>();
                         attr.put("description", rs.getString("description"));
+                        // FileItemSummary has no creationTime field in any released ndex-object-model,
+                        // so it rides in attributes. Folder listings are the replacement for the removed
+                        // GET /v3/files/folders, which did carry it. See issue #163.
+                        attr.put("creationTime", rs.getTimestamp("creation_time"));
                     }
                     FileItemSummary summary = new FileItemSummary(
                         (UUID) rs.getObject("UUID"), FileType.FOLDER,

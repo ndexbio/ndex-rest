@@ -16,6 +16,7 @@ import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.TestConfigHelper;
 import org.jboss.resteasy.mock.*;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.Before;
@@ -55,6 +56,28 @@ public class TestFolderServiceV3 {
         response = new MockHttpResponse();
     }
     
+    /**
+     * Issue #163 removed GET /v3/files/folders. POST "/" still exists on this resource, so the bare
+     * path must answer 405 -- and critically must NOT fall through to @Path("/{folderid}") with an
+     * empty folderid, which would reach UUID.fromString("") and surface as a 500.
+     */
+    @Test
+    public void testBareFolderListGetNoLongerRouted() throws Exception {
+        expect(mockHttpServletRequest.getAttribute("User")).andReturn(null).anyTimes();
+        replay(mockHttpServletRequest);
+
+        for (String path : new String[] { "/v3/files/folders/", "/v3/files/folders" }) {
+            MockHttpResponse resp = new MockHttpResponse();
+            dispatcher.invoke(MockHttpRequest.get(path), resp);
+
+            assertEquals("GET " + path + " must be 405, not 200 (endpoint gone) and not 500 "
+                    + "(empty-segment fallthrough into getFolder)",
+                    Status.METHOD_NOT_ALLOWED.getStatusCode(), resp.getStatus());
+            assertFalse("GET " + path + " must not return a folder body",
+                    new String(resp.getOutput()).contains("externalId"));
+        }
+    }
+
     @Test
     public void testCreateFolderRequestNull() throws Exception {
         expect(mockHttpServletRequest.getAttribute("User")).andReturn(null).anyTimes();
@@ -176,48 +199,7 @@ public class TestFolderServiceV3 {
     }
 
 
-    @Test
-    public void testListMyFoldersSuccess() throws Exception {
-        UUID userId = UUID.randomUUID();
-        User user = new User();
-        user.setExternalId(userId);
-
-        expect(mockHttpServletRequest.getAttribute("User")).andReturn(user);
-        replay(mockHttpServletRequest);
-
-        List<org.ndexbio.model.object.NdexFolder> folderList = new ArrayList<>();
-        org.ndexbio.model.object.NdexFolder folder = new org.ndexbio.model.object.NdexFolder();
-        folder.setName("My Folder");
-        folderList.add(folder);
-
-        FolderDAO mockFolderDAO = createMock(FolderDAO.class);
-        expect(mockFolderDAO.listFoldersOfUser(userId, 100)).andReturn(folderList);
-        mockFolderDAO.close();
-        expectLastCall();
-        replay(mockFolderDAO);
-
-        DAOFactory mockFactory = createMock(DAOFactory.class);
-        expect(mockFactory.getFolderDAO()).andReturn(mockFolderDAO);
-        replay(mockFactory);
-
-        Configuration.getInstance().setDAOFactory(mockFactory);
-
-        MockHttpRequest request = MockHttpRequest.get("/v3/files/folders/");
-        dispatcher.invoke(request, response);
-
-        assertEquals(Status.OK.getStatusCode(), response.getStatus());
-    }
     
-    @Test
-    public void testListMyFoldersUnauthorized() throws Exception {
-        expect(mockHttpServletRequest.getAttribute("User")).andReturn(null).anyTimes();
-        replay(mockHttpServletRequest);
-
-        MockHttpRequest request = MockHttpRequest.get("/v3/files/folders/");
-        dispatcher.invoke(request, response);
-
-        assertEquals(Status.UNAUTHORIZED.getStatusCode(), response.getStatus());
-    }
     
     @Test
     public void testDeleteFolderUnauthorized() throws Exception {
