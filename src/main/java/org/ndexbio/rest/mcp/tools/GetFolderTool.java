@@ -5,11 +5,13 @@ import java.util.Map;
 
 import jakarta.servlet.http.HttpServletRequest;
 
+import org.ndexbio.common.models.dao.FolderDAO;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.object.FileCount;
 import org.ndexbio.model.object.FileItemSummary;
 import org.ndexbio.model.object.NdexFolder;
 import org.ndexbio.model.object.User;
+import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.mcp.McpSchema;
 import org.ndexbio.rest.mcp.ToolsService;
 import org.ndexbio.rest.mcp.ValidationService;
@@ -98,15 +100,22 @@ public class GetFolderTool {
                 "Ignored for all other modes. Defaults to 100 when omitted.\n\n" +
                 "Examples: 10, 50, 100"))
             .property("format", new McpSchema.InputProperty("string",
-                "Optional. Controls response detail level when mode='browse'. " +
-                "compact returns basic metadata only; update (default) includes full metadata " +
-                "such as description, edge counts, and visibility. " +
-                "Ignored for all other modes.\n\n" +
-                "Examples: \"update\", \"compact\"",
-                List.of("update", "compact")))
+                "Optional. Selects how much metadata each item carries when mode='browse'. " +
+                "Defaults to compact, which is the fuller of the two despite its name: it adds " +
+                "description and visibility to every item, creationTime to folders, edge counts to " +
+                "networks, and target type, target status and target visibility to shortcuts. " +
+                "update is the leaner view and omits all of those, returning only identity and " +
+                "modification metadata. Fields with no value are omitted from the response rather " +
+                "than returned as null. Ignored when mode is 'list', 'get' or 'count'.\n\n" +
+                "Examples: \"compact\", \"update\"",
+                List.of("compact", "update")))
             .property("type", new McpSchema.InputProperty("string",
                 "Optional. Filters items by type when mode='browse'. " +
                 "When omitted, all item types are returned. " +
+                "A shortcut is a pointer at a folder or a network, so it counts as a way of seeing " +
+                "whatever it points at: 'folder' returns folders plus shortcuts pointing at folders, " +
+                "'network' returns networks plus shortcuts pointing at networks, and 'shortcut' " +
+                "returns shortcuts only, whatever they point at. " +
                 "Ignored for all other modes.\n\n" +
                 "Examples: \"network\", \"folder\", \"shortcut\"",
                 List.of("network", "folder", "shortcut")))
@@ -159,8 +168,14 @@ public class GetFolderTool {
                     if (user == null) return toolsService.unauthorizedResult();
                     Integer limit = MAPPER.convertValue(args.get("limit"), Integer.class);
                     int effectiveLimit = (limit != null) ? limit : 100;
-                    List<NdexFolder> folders =
-                            new FolderServiceV3(httpReq).listMyFolders(effectiveLimit);
+                    // Composed here rather than delegated: the REST handler this replaced was
+                    // nothing but this DAO call, and it was removed with GET /v3/files/folders.
+                    // The other modes still delegate to FolderServiceV3 because they carry
+                    // access-key and readability branching that must not be forked into this layer.
+                    List<NdexFolder> folders;
+                    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
+                        folders = dao.listFoldersOfUser(user.getExternalId(), effectiveLimit);
+                    }
                     return CallToolResult.builder()
                             .addTextContent(MAPPER.writeValueAsString(folders))
                             .build();
@@ -191,7 +206,9 @@ public class GetFolderTool {
                     String folderId = validationService.unwrapToolInputValue(
                             args.get("folderId"), String.class);
                     String format = MAPPER.convertValue(args.get("format"), String.class);
-                    if (format == null) format = "update";
+                    // compact is the fuller view (see the format schema description): it is the
+                    // default so browse returns the metadata this tool advertises. Issue #163.
+                    if (format == null) format = "compact";
                     String type = MAPPER.convertValue(args.get("type"), String.class);
                     String accessKey = MAPPER.convertValue(args.get("accessKey"), String.class);
                     // Unbounded, matching this tool's previous behaviour; browse exposes no paging

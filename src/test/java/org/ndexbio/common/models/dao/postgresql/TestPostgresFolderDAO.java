@@ -10,16 +10,19 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
 import org.easymock.Capture;
+import org.easymock.CaptureType;
 import org.junit.Test;
 import org.ndexbio.common.models.dao.AccessKeyResolver;
 import org.ndexbio.common.models.dao.DeletedFileIds;
 import org.ndexbio.model.object.FileCount;
+import org.ndexbio.model.object.FileItemSummary;
 import org.ndexbio.common.models.dao.FilePermissionResolver;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.FileType;
@@ -180,11 +183,67 @@ public class TestPostgresFolderDAO {
 
         replay(conn, stmt, rs);
 
-        // The 2-arg form is what /v3/files/folders/ and the MCP get_folder list mode call; it must stay
-        // on the all-folders scope.
+        // The 2-arg form is what the MCP get_folder list mode calls -- its sole caller since issue #163
+        // removed GET /v3/files/folders. It must stay on the all-folders scope.
         assertTrue(new PostgresFolderDAO(conn).listFoldersOfUser(ownerId, 25).isEmpty());
 
         verify(conn, stmt, rs);
+    }
+
+    // ── compact folder listings carry creationTime in attributes (issue #163) ──
+    //
+    // The removed GET /v3/files/folders returned creation_time on every folder. FileItemSummary has no
+    // creationTime field in any released ndex-object-model, so the folder listing that replaces that
+    // endpoint carries it inside the existing attributes map. Only the compact view selects it.
+
+    @Test
+    public void compactFolderListingPutsCreationTimeInAttributes() throws SQLException {
+        UUID ownerId = UUID.randomUUID();
+        Timestamp created = Timestamp.valueOf("2026-01-02 03:04:05");
+
+        Connection conn = createMock(Connection.class);
+        PreparedStatement pst = createMock(PreparedStatement.class);
+        ResultSet rs = createMock(ResultSet.class);
+
+        Capture<String> sql = Capture.newInstance(CaptureType.ALL);
+        expect(conn.prepareStatement(capture(sql))).andReturn(pst).anyTimes();
+        pst.setObject(anyInt(), anyObject());
+        expectLastCall().anyTimes();
+        pst.setString(anyInt(), anyString());   // the shortcut arm binds target_type
+        expectLastCall().anyTimes();
+        pst.setInt(anyInt(), anyInt());
+        expectLastCall().anyTimes();
+        expect(pst.executeQuery()).andReturn(rs).anyTimes();
+
+        // One folder row, then nothing for the network and shortcut arms.
+        expect(rs.next()).andReturn(true).once();
+        expect(rs.getObject("UUID")).andReturn(FOLDER).anyTimes();
+        expect(rs.getString("name")).andReturn("Wnt").anyTimes();
+        expect(rs.getTimestamp("modification_time")).andReturn(created).anyTimes();
+        expect(rs.getString("updated_by")).andReturn("me").anyTimes();
+        expect(rs.getString("description")).andReturn("a folder").anyTimes();
+        expect(rs.getString("visibility")).andReturn("PUBLIC").anyTimes();
+        expect(rs.getTimestamp("creation_time")).andReturn(created).anyTimes();
+        expect(rs.getObject("owner_id")).andReturn(ownerId).anyTimes();
+        expect(rs.getString("owner_name")).andReturn("me").anyTimes();
+        expect(rs.getBoolean("is_shared")).andReturn(false).anyTimes();
+        expect(rs.next()).andReturn(false).anyTimes();
+        rs.close();
+        expectLastCall().anyTimes();
+        pst.close();
+        expectLastCall().anyTimes();
+
+        replay(conn, pst, rs);
+
+        List<FileItemSummary> items = new PostgresFolderDAO(conn)
+                .listRootItemsOfUser(ownerId, true, FileType.FOLDER, 0, -1);
+
+        assertEquals(1, items.size());
+        assertTrue("the compact folder SELECT must ask for creation_time",
+                sql.getValues().stream().anyMatch(q -> q.contains("f.creation_time")));
+        assertEquals("creationTime must ride in attributes",
+                created, items.get(0).getAttributes().get("creationTime"));
+        assertEquals("a folder", items.get(0).getAttributes().get("description"));
     }
 
     @Test
@@ -610,11 +669,12 @@ public class TestPostgresFolderDAO {
     }
 
     /**
-     * A shortcut's target is only ever a FOLDER or a NETWORK, so type=SHORTCUT has always matched
-     * nothing. Paging must not turn that empty answer into an error or into every shortcut.
+     * type=SHORTCUT asks for shortcuts themselves, so it must query only the shortcut table and must
+     * NOT constrain target_type -- nothing points at a shortcut, so constraining it matched zero rows
+     * (issue #163). The folder and network arms stay out of the query.
      */
     @Test
-    public void testPagedListingByShortcutTypeStaysEmpty() throws Exception {
+    public void testPagedListingByShortcutTypeQueriesShortcutsWithoutTargetFilter() throws Exception {
         Connection conn = createMock(Connection.class);
         FilePermissionResolver resolver = createMock(FilePermissionResolver.class);
         expectReadClauses(resolver, Collections.singleton(FOLDER));
@@ -625,13 +685,41 @@ public class TestPostgresFolderDAO {
 
         PostgresFolderDAO dao = new PostgresFolderDAO(conn);
         dao.setPermissionResolver(resolver);
-        assertTrue(dao.listReadableItemsInFolder(FOLDER, false, FileType.SHORTCUT, USER, 0, 10).isEmpty());
+        dao.listReadableItemsInFolder(FOLDER, false, FileType.SHORTCUT, USER, 0, 10);
 
         String keySql = sql.getValues().get(0);
-        assertFalse(keySql.contains("FROM folder f"));
-        assertFalse(keySql.contains("FROM network n"));
-        assertTrue(keySql.contains("s.target_type=?"));
+        assertFalse("folders must not be queried under type=shortcut", keySql.contains("FROM folder f"));
+        assertFalse("networks must not be queried under type=shortcut", keySql.contains("FROM network n"));
+        assertTrue("shortcuts must be queried", keySql.contains("FROM shortcut s"));
+        assertFalse("type=shortcut must not filter on target_type", keySql.contains("s.target_type=?"));
         verify(conn, resolver);
+    }
+
+    /**
+     * The counterpart to the test above: type=FOLDER and type=NETWORK still filter on target_type, so
+     * they keep returning their own kind plus the shortcuts pointing at it.
+     */
+    @Test
+    public void testPagedListingByFolderOrNetworkTypeStillFiltersOnTargetType() throws Exception {
+        for (FileType type : new FileType[] { FileType.FOLDER, FileType.NETWORK }) {
+            Connection conn = createMock(Connection.class);
+            FilePermissionResolver resolver = createMock(FilePermissionResolver.class);
+            expectReadClauses(resolver, Collections.singleton(FOLDER));
+
+            Capture<String> sql = newCapture(org.easymock.CaptureType.ALL);
+            expect(conn.prepareStatement(capture(sql))).andReturn(emptyStatement());
+            replay(conn, resolver);
+
+            PostgresFolderDAO dao = new PostgresFolderDAO(conn);
+            dao.setPermissionResolver(resolver);
+            dao.listReadableItemsInFolder(FOLDER, false, type, USER, 0, 10);
+
+            String keySql = sql.getValues().get(0);
+            assertTrue("type=" + type + " must still reach shortcuts", keySql.contains("FROM shortcut s"));
+            assertTrue("type=" + type + " must filter shortcuts on target_type",
+                    keySql.contains("s.target_type=?"));
+            verify(conn, resolver);
+        }
     }
 
     // Note: there is no folder-audience test here. Solr moved from index-time access lists to

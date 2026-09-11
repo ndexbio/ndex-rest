@@ -439,10 +439,12 @@ public class FolderServiceV3 extends NdexService {
 
 					Query Parameters:
 					- format: Optional. "compact" or "update" (default). Controls level of detail in response.
-					- type: Optional. Filter by type: "network", "folder", or null for all types.
-					A type of "shortcut" returns an empty array by design: the filter selects a shortcut's
-					TARGET, and a target is only ever a folder or a network. Conversely "network" returns
-					networks *and* network-targeted shortcuts.
+					- type: Optional. "folder", "network" or "shortcut". Omit it to get everything.
+					A shortcut is a pointer at a folder or a network, so it counts as a way of seeing
+					whatever it points at:
+					* "folder"   returns folders, plus shortcuts pointing at folders
+					* "network"  returns networks, plus shortcuts pointing at networks
+					* "shortcut" returns shortcuts only, whatever they point at
 					- accesskey: Optional. Access key for anonymous access
 					- start: Optional. Zero-based index of the first item to return (default: 0). A negative
 					value is rejected with 400. A non-numeric value is a parameter-conversion failure and
@@ -461,12 +463,15 @@ public class FolderServiceV3 extends NdexService {
 					are not directly comparable under a type filter, since /list?type=network also returns
 					network-targeted shortcuts while FileCount.network does not count them.
 
-					Response Format:
-					- Compact: Basic metadata only
-					- Update: Full metadata including:
-					* For networks: description, edge count, visibility
+					Response Format: despite the names, **compact is the fuller view** and update is
+					the leaner one. Every item carries uuid, type, name, modificationTime, updatedBy,
+					owner and isShared in both views; the fields below are added only by compact.
+					- compact adds:
+					* For folders: description, visibility, and creationTime (inside attributes)
+					* For networks: description, edgecount, visibility
 					* For shortcuts: target type, target status, target visibility, target edge count if target is a network
-					* For folders: description
+					- update (the default) omits all of the above.
+					Null fields are omitted from the response entirely rather than sent as null.
 					"""
 	)
 	@ApiResponses(value = {
@@ -530,39 +535,5 @@ public class FolderServiceV3 extends NdexService {
 	}
 	
 	
-	@GET
-	@Path("/")
-	@Produces(MediaType.APPLICATION_JSON)
-    @Operation(
-            summary = "List My Folders",
-            description = """
-                          Lists all folders owned by the current user.
-                          
-                          Query Parameters:
-                          - limit: Optional. Maximum number of folders to return (default: 100)
-                          
-                          Edge Cases:
-                          - No folders: Returns empty array
-                          """
-    )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Folders listed",
-                    content = @Content(array = @ArraySchema(schema = @Schema(implementation = NdexFolder.class)))),
-            @ApiResponse(responseCode = "401", description = "Unauthorized")
-    })
-	public List<NdexFolder> listMyFolders(@QueryParam("limit") @DefaultValue("100") int limit) throws Exception {
-
-	    UUID userId = getLoggedInUserId();
-	    if (userId == null) {
-	        throw new UnauthorizedOperationException("You must be logged in to list your folders.");
-	    }
-
-	    List<NdexFolder> folders;
-	    try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-	        folders = dao.listFoldersOfUser(userId, limit);
-	    }
-
-	    return folders;
-	}
 
 }

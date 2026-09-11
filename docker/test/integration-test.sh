@@ -1667,12 +1667,27 @@ echo "${VIS_F_GET}" | grep -qE '"visibility"[[:space:]]*:[[:space:]]*"PUBLIC"' \
   || api_fail "GET folder did not report visibility=PUBLIC. Body: ${VIS_F_GET:0:300}"
 api_pass "GET folder reports visibility=PUBLIC"
 
+# GET /v3/files/folders was removed by #163; the folder listing replaces it. format=compact is the
+# view that carries visibility, description and creationTime -- despite the name it is the FULLER of
+# the two, so do not "fix" this back to the default format=update.
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}: GET /v3/files/folders/ (list-mine reports visibility)"
-VIS_F_LIST=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/")
+echo "  API call ${CALL_NUM}: GET /v3/files/folders/home/list?type=folder&format=compact (listing reports visibility)"
+VIS_F_LIST=$(curl -s -u "${TEST_USER}:${TEST_PASS}" \
+  "${BASE_URL}/v3/files/folders/home/list?type=folder&format=compact")
+echo "${VIS_F_LIST}" | grep -q "${VIS_F_ID}" \
+  || api_fail "home folder listing omitted the folder just created (${VIS_F_ID}). Body: ${VIS_F_LIST:0:400}"
 echo "${VIS_F_LIST}" | grep -q '"visibility"' \
-  || api_fail "list-mine folders did not report a visibility field. Body: ${VIS_F_LIST:0:400}"
-api_pass "GET list-mine folders reports visibility"
+  || api_fail "folder listing did not report a visibility field. Body: ${VIS_F_LIST:0:400}"
+api_pass "GET /v3/files/folders/home/list reports visibility"
+
+# creationTime rides in attributes because FileItemSummary has no such field (#163). This assertion is
+# the contract the ndex-java-client maps against; if it breaks, that client silently loses the field.
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: GET /v3/files/folders/home/list (compact carries attributes.creationTime)"
+echo "${VIS_F_LIST}" | grep -q '"creationTime"' \
+  || api_fail "compact folder listing did not carry attributes.creationTime. Body: ${VIS_F_LIST:0:400}"
+api_pass "compact folder listing carries creationTime in attributes"
+
 
 # --- Folder: omitted visibility defaults to PRIVATE ---
 CALL_NUM=$((CALL_NUM+1))
@@ -1735,6 +1750,72 @@ VIS_S_GET2=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/shortc
 echo "${VIS_S_GET2}" | grep -qE '"visibility"[[:space:]]*:[[:space:]]*"PRIVATE"' \
   || api_fail "shortcut update did not change visibility to PRIVATE. Body: ${VIS_S_GET2:0:300}"
 api_pass "PUT shortcut visibility=PRIVATE applied; GET reports PRIVATE"
+
+# ── /list type filter: shortcut is a first-class type (#163) ─────────────────────────────────────────
+# Fixtures: VIS_F_ID is a folder at home root; VIS_S_ID is a shortcut at home root POINTING AT it.
+# A shortcut counts as a way of seeing whatever it points at, so:
+#   type=folder   -> the folder AND the shortcut pointing at it
+#   type=shortcut -> the shortcut only (this used to return an empty array)
+#   type=network  -> neither, since nothing here is or points at a network
+step "Folder listing type filter: folder / shortcut / network (#163)"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: GET /v3/files/folders/home/list?type=shortcut — must return the shortcut"
+T_SC=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/home/list?type=shortcut")
+echo "${T_SC}" | grep -q "${VIS_S_ID}" \
+  || api_fail "type=shortcut omitted shortcut ${VIS_S_ID}; the filter is still matching on target_type. Body: ${T_SC:0:400}"
+echo "${T_SC}" | grep -q "${VIS_F_ID}" \
+  && api_fail "type=shortcut must not return the folder ${VIS_F_ID}. Body: ${T_SC:0:400}"
+api_pass "type=shortcut returns shortcuts and nothing else"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: GET /v3/files/folders/home/list?type=folder — folder AND the shortcut to it"
+T_FD=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/home/list?type=folder")
+echo "${T_FD}" | grep -q "${VIS_F_ID}" \
+  || api_fail "type=folder omitted folder ${VIS_F_ID}. Body: ${T_FD:0:400}"
+echo "${T_FD}" | grep -q "${VIS_S_ID}" \
+  || api_fail "type=folder must also return the folder-targeted shortcut ${VIS_S_ID}. Body: ${T_FD:0:400}"
+api_pass "type=folder returns folders plus shortcuts pointing at folders"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: GET /v3/files/folders/home/list?type=network — neither fixture"
+T_NW=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/home/list?type=network")
+echo "${T_NW}" | grep -q "${VIS_F_ID}" \
+  && api_fail "type=network must not return the folder ${VIS_F_ID}. Body: ${T_NW:0:400}"
+echo "${T_NW}" | grep -q "${VIS_S_ID}" \
+  && api_fail "type=network must not return a folder-targeted shortcut ${VIS_S_ID}. Body: ${T_NW:0:400}"
+api_pass "type=network excludes folders and folder-targeted shortcuts"
+
+# ── Removed endpoints leave no trace in the generated OpenAPI spec (#163) ────────────────────────────
+# The spec is generated at runtime from the @Operation annotations, so the deleted GET handlers can
+# only vanish from it if their annotations are truly gone. The summaries below were unique to them.
+# The sibling POST creates share the same paths and must survive, which is what proves this assertion
+# is testing the operations rather than the paths.
+step "Removed list-mine endpoints are absent from OpenAPI (#163)"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: GET /openapi.json — removed GET operations must be gone"
+OPENAPI_BODY=$(curl -s "${BASE_URL}/openapi.json")
+[[ -n "${OPENAPI_BODY}" ]] || api_fail "GET /openapi.json returned an empty body"
+
+# Substring tests rather than `echo | grep -q`: the spec body is large, and grep -q exits on its first
+# match, which SIGPIPEs the echo still writing into it. Under `set -o pipefail` that turns a successful
+# match into a failed pipeline. Keep these as pure-bash tests.
+[[ "${OPENAPI_BODY}" == *"List My Folders"* ]] \
+  && api_fail "GET /v3/files/folders is still documented in OpenAPI (summary 'List My Folders')"
+[[ "${OPENAPI_BODY}" == *"List my Shortcuts"* ]] \
+  && api_fail "GET /v3/files/shortcuts is still documented in OpenAPI (summary 'List my Shortcuts')"
+api_pass "neither removed list-mine operation appears in the OpenAPI spec"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: GET /openapi.json — sibling POST creates on the same paths survive"
+[[ "${OPENAPI_BODY}" == *"Create a Folder"* ]] \
+  || api_fail "POST /v3/files/folders vanished from OpenAPI; the removal took the whole path with it"
+[[ "${OPENAPI_BODY}" == *"Create a Shortcut"* ]] \
+  || api_fail "POST /v3/files/shortcuts vanished from OpenAPI; the removal took the whole path with it"
+[[ "${OPENAPI_BODY}" == *"List items in a folder"* ]] \
+  || api_fail "the replacement listing operation is missing from OpenAPI"
+api_pass "POST creates and the replacement listing operation are still documented"
 
 # ── STEP: Visibility change fully reindexes in Solr (drop from old core, add to new) ──
 # Proves the reviewer's concern on PR #129: a PRIVATE→PUBLIC update moves the entry between
@@ -2472,7 +2553,9 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   # ── 7b) Only home-root folders are network sets (issue #164) ───────────────────────────────────
   # A network set is always created at the owner's home root, so a folder nested inside another
   # folder is not a set: it must be absent from /v2/user/{id}/networksets and from networkSetCount.
-  # /v3/files/folders/ is deliberately NOT scoped this way and must still return the nested folder.
+  # The any-depth listing is deliberately NOT scoped this way. GET /v3/files/folders was removed by
+  # #163, so that guarantee is now asserted in integration-mcp-test.sh via get_folder mode=list;
+  # /v3/files/folders/home/list is home-root only and cannot stand in for it here.
   CALL_NUM=$((CALL_NUM+1))
   echo "  API call ${CALL_NUM}: POST /v3/files/folders/ — sub-folder nested under set ${NS_ID}"
   NS_SUB_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
@@ -2504,14 +2587,6 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   [[ "${NS_SET_COUNT2}" == "${NS_LIST_LEN2}" ]] \
     || api_fail "with a nested folder present: networkSetCount (${NS_SET_COUNT2}) != list length (${NS_LIST_LEN2})"
   api_pass "networkSetCount (${NS_SET_COUNT2}) still equals the /networksets length with a nested folder present"
-
-  # Regression guard: the v3 listing is a different contract and must keep returning every folder.
-  CALL_NUM=$((CALL_NUM+1))
-  echo "  API call ${CALL_NUM}: GET /v3/files/folders/ — nested folder must STILL be returned"
-  NS_V3_FOLDERS=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/")
-  echo "${NS_V3_FOLDERS}" | grep -q "${NS_SUB_ID}" \
-    || api_fail "the v2 root scoping leaked into GET /v3/files/folders/; nested folder ${NS_SUB_ID} is missing. Body: ${NS_V3_FOLDERS:0:500}"
-  api_pass "GET /v3/files/folders/ still lists folders at any depth (unaffected by the v2 scoping)"
 
   # ── 8) PUT /{id}/systemproperty → showcase is a documented no-op ────────────────────────────────
   NS_BEFORE=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/networkset/${NS_ID}")

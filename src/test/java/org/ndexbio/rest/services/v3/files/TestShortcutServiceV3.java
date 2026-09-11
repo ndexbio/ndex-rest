@@ -54,6 +54,28 @@ public class TestShortcutServiceV3 {
         response = new MockHttpResponse();
     }
 
+    /**
+     * Issue #163 removed GET /v3/files/shortcuts. POST "/" still exists on this resource, so the bare
+     * path must answer 405. The anonymous case matters most here: @Path("/{shortcutid}") GET is
+     * @PermitAll, so an empty-segment fallthrough would be reachable without credentials.
+     */
+    @Test
+    public void testBareShortcutListGetNoLongerRouted() throws Exception {
+        expect(mockHttpServletRequest.getAttribute("User")).andReturn(null).anyTimes();
+        replay(mockHttpServletRequest);
+
+        for (String path : new String[] { "/v3/files/shortcuts/", "/v3/files/shortcuts" }) {
+            MockHttpResponse resp = new MockHttpResponse();
+            dispatcher.invoke(MockHttpRequest.get(path), resp);
+
+            assertEquals("anonymous GET " + path + " must be 405, not 200 (endpoint gone) and not 500 "
+                    + "(empty-segment fallthrough into the @PermitAll getShortcut)",
+                    Status.METHOD_NOT_ALLOWED.getStatusCode(), resp.getStatus());
+            assertFalse("anonymous GET " + path + " must not return a shortcut body",
+                    new String(resp.getOutput()).contains("externalId"));
+        }
+    }
+
     @Test
     public void testCreateShortcutSuccess() throws Exception {
         UUID userId = UUID.randomUUID();
@@ -436,62 +458,7 @@ public class TestShortcutServiceV3 {
         assertTrue(new String(response.getOutput()).contains("not the owner"));
     }
 
-    @Test
-    public void testListMyShortcutsSuccess() throws Exception {
-        UUID userId = UUID.randomUUID();
-        User user = new User();
-        user.setExternalId(userId);
 
-        expect(mockHttpServletRequest.getAttribute("User")).andReturn(user).times(1);
-        replay(mockHttpServletRequest);
-
-        List<NdexShortcut> mockShortcuts = new ArrayList<>();
-        NdexShortcut s = new NdexShortcut();
-        s.setName("Test Shortcut");
-        s.setExternalId(UUID.randomUUID());
-        mockShortcuts.add(s);
-
-        ShortcutDAO shortcutDAO = createMock(ShortcutDAO.class);
-        expect(shortcutDAO.listShortcutsOfUser(userId, 100)).andReturn(mockShortcuts);
-        shortcutDAO.close();
-        expectLastCall();
-        replay(shortcutDAO);
-
-        DAOFactory daoFactory = createMock(DAOFactory.class);
-        expect(daoFactory.getShortcutDAO()).andReturn(shortcutDAO);
-        replay(daoFactory);
-
-        Configuration.getInstance().setDAOFactory(daoFactory);
-
-        MockHttpRequest request = MockHttpRequest.get("/v3/files/shortcuts/");
-        dispatcher.invoke(request, response);
-        assertEquals(Status.OK.getStatusCode(), response.getStatus());
-
-        ObjectMapper mapper = new ObjectMapper();
-        NdexShortcut[] result = mapper.readValue(response.getOutput(), NdexShortcut[].class);
-        assertEquals(1, result.length);
-        assertEquals("Test Shortcut", result[0].getName());
-    }
-
-    @Test
-    public void testListMyShortcutsUnauthorized() throws Exception {
-        expect(mockHttpServletRequest.getAttribute("User")).andReturn(null).anyTimes();
-        replay(mockHttpServletRequest);
-
-        ShortcutDAO shortcutDAO = createMock(ShortcutDAO.class);
-        replay(shortcutDAO);
-
-        DAOFactory daoFactory = createMock(DAOFactory.class);
-        expect(daoFactory.getShortcutDAO()).andReturn(shortcutDAO).anyTimes();
-        replay(daoFactory);
-
-        Configuration.getInstance().setDAOFactory(daoFactory);
-
-        MockHttpRequest request = MockHttpRequest.get("/v3/files/shortcuts/");
-        dispatcher.invoke(request, response);
-
-        assertEquals(Status.UNAUTHORIZED.getStatusCode(), response.getStatus());
-    }
 
     @Test
     public void testDeleteShortcutWithPermanentFlag() throws Exception {

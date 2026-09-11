@@ -302,42 +302,6 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
 	    }
 	}
 	
-	@Override
-	public List<NdexShortcut> listShortcutsOfUser(UUID ownerId, int limit) throws SQLException {
-	    List<NdexShortcut> result = new ArrayList<>();
-
-	    String sql = "SELECT \"UUID\", name, creation_time, modification_time, is_deleted, target, parent, target_type, visibility " +
-	                 " FROM shortcut " +
-	                 " WHERE owneruuid=? AND is_deleted=false " +
-	                 " ORDER BY name " +
-	                 " LIMIT ?";
-
-	    try (PreparedStatement pst = db.prepareStatement(sql)) {
-	        pst.setObject(1, ownerId);
-	        pst.setInt(2, limit);
-
-	        try (ResultSet rs = pst.executeQuery()) {
-	            while (rs.next()) {
-	                NdexShortcut s = new NdexShortcut();
-	                s.setExternalId((UUID) rs.getObject("UUID"));
-	                s.setName(rs.getString("name"));
-	                s.setCreationTime(rs.getTimestamp("creation_time"));
-	                s.setModificationTime(rs.getTimestamp("modification_time"));
-	                s.setIsDeleted(rs.getBoolean("is_deleted"));
-	                s.setTarget((UUID) rs.getObject("target"));
-	                s.setParent((UUID) rs.getObject("parent"));
-	                s.setTargetType(FileType.valueOf(rs.getString("target_type").toUpperCase()));
-	                String visibility = rs.getString("visibility");
-	                if (visibility != null)
-	                    s.setVisibility(VisibilityType.valueOf(visibility));
-
-	                result.add(s);
-	            }
-	        }
-	    }
-
-	    return result;
-	}
 	
 	public void setShortcutVisibility(UUID shortcutId, VisibilityType visibility) throws SQLException, NdexException {
 	    String sql = "UPDATE shortcut SET visibility = ? WHERE \"UUID\" = ? AND is_deleted = false";
