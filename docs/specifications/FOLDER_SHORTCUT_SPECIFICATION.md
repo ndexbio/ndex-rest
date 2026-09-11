@@ -332,6 +332,11 @@ In the API, we will add a new **files** endpoint in NDEx to handle folders and s
   for paging. Despite the names, `compact` is the **fuller** view — it adds description,
   visibility, folder creationTime and network edgecount — while `update` (the default) omits them.
 
+  `type` is `folder`, `network` or `shortcut`; omit it for everything. A shortcut is a pointer at a
+  folder or a network, so it counts as a way of seeing whatever it points at: `folder` returns folders
+  plus shortcuts pointing at folders, `network` returns networks plus shortcuts pointing at networks,
+  and `shortcut` returns shortcuts only.
+
   Response:
 
   ```  
@@ -450,9 +455,7 @@ above instead, starting at the `home` literal and recursing per folder for depth
 
 * Your folders: `GET /v3/files/folders/home/list?type=folder`, keeping items whose `type` is `folder`
   — folder-targeted shortcuts are returned alongside them.
-* Your shortcuts: `GET /v3/files/folders/home/list` with **no** `type` filter, keeping items whose
-  `type` is `shortcut`. Note `?type=shortcut` returns an **empty array by design**: the filter selects
-  a shortcut's *target*, and a target is only ever a folder or a network.
+* Your shortcuts: `GET /v3/files/folders/home/list?type=shortcut`.
 
 ## New and updated API functions for network 
 

@@ -669,11 +669,12 @@ public class TestPostgresFolderDAO {
     }
 
     /**
-     * A shortcut's target is only ever a FOLDER or a NETWORK, so type=SHORTCUT has always matched
-     * nothing. Paging must not turn that empty answer into an error or into every shortcut.
+     * type=SHORTCUT asks for shortcuts themselves, so it must query only the shortcut table and must
+     * NOT constrain target_type -- nothing points at a shortcut, so constraining it matched zero rows
+     * (issue #163). The folder and network arms stay out of the query.
      */
     @Test
-    public void testPagedListingByShortcutTypeStaysEmpty() throws Exception {
+    public void testPagedListingByShortcutTypeQueriesShortcutsWithoutTargetFilter() throws Exception {
         Connection conn = createMock(Connection.class);
         FilePermissionResolver resolver = createMock(FilePermissionResolver.class);
         expectReadClauses(resolver, Collections.singleton(FOLDER));
@@ -684,13 +685,41 @@ public class TestPostgresFolderDAO {
 
         PostgresFolderDAO dao = new PostgresFolderDAO(conn);
         dao.setPermissionResolver(resolver);
-        assertTrue(dao.listReadableItemsInFolder(FOLDER, false, FileType.SHORTCUT, USER, 0, 10).isEmpty());
+        dao.listReadableItemsInFolder(FOLDER, false, FileType.SHORTCUT, USER, 0, 10);
 
         String keySql = sql.getValues().get(0);
-        assertFalse(keySql.contains("FROM folder f"));
-        assertFalse(keySql.contains("FROM network n"));
-        assertTrue(keySql.contains("s.target_type=?"));
+        assertFalse("folders must not be queried under type=shortcut", keySql.contains("FROM folder f"));
+        assertFalse("networks must not be queried under type=shortcut", keySql.contains("FROM network n"));
+        assertTrue("shortcuts must be queried", keySql.contains("FROM shortcut s"));
+        assertFalse("type=shortcut must not filter on target_type", keySql.contains("s.target_type=?"));
         verify(conn, resolver);
+    }
+
+    /**
+     * The counterpart to the test above: type=FOLDER and type=NETWORK still filter on target_type, so
+     * they keep returning their own kind plus the shortcuts pointing at it.
+     */
+    @Test
+    public void testPagedListingByFolderOrNetworkTypeStillFiltersOnTargetType() throws Exception {
+        for (FileType type : new FileType[] { FileType.FOLDER, FileType.NETWORK }) {
+            Connection conn = createMock(Connection.class);
+            FilePermissionResolver resolver = createMock(FilePermissionResolver.class);
+            expectReadClauses(resolver, Collections.singleton(FOLDER));
+
+            Capture<String> sql = newCapture(org.easymock.CaptureType.ALL);
+            expect(conn.prepareStatement(capture(sql))).andReturn(emptyStatement());
+            replay(conn, resolver);
+
+            PostgresFolderDAO dao = new PostgresFolderDAO(conn);
+            dao.setPermissionResolver(resolver);
+            dao.listReadableItemsInFolder(FOLDER, false, type, USER, 0, 10);
+
+            String keySql = sql.getValues().get(0);
+            assertTrue("type=" + type + " must still reach shortcuts", keySql.contains("FROM shortcut s"));
+            assertTrue("type=" + type + " must filter shortcuts on target_type",
+                    keySql.contains("s.target_type=?"));
+            verify(conn, resolver);
+        }
     }
 
     // Note: there is no folder-audience test here. Solr moved from index-time access lists to

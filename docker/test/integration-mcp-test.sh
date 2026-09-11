@@ -788,6 +788,26 @@ echo "${MCP_JSON}" | grep -q "visibility" \
   && api_fail "format=update must omit visibility; the two views are no longer distinct: ${MCP_JSON:0:400}"
 api_pass "explicit format=update still returns the leaner view (no visibility)"
 
+# type=shortcut is advertised in this tool's enum and must actually return shortcuts (#163). The
+# nested fixture is a folder, so type=shortcut must exclude it while type=folder includes it.
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: get_folder mode=browse type=shortcut (must exclude the nested folder)"
+mcp_call '{"jsonrpc":"2.0","id":"mcp-29e","method":"tools/call","params":{"name":"get_folder","arguments":{"mode":"browse","type":"shortcut","folderId":{"waived":false,"parameter":"'"${MCP_FOLDER_ID}"'"}}}}' \
+  "-u ${TEST_USER}:${TEST_PASS}"
+mcp_pass "get_folder mode=browse type=shortcut (auth)"
+echo "${MCP_JSON}" | grep -q "${MCP_SUBFOLDER_ID}" \
+  && api_fail "type=shortcut returned the nested FOLDER ${MCP_SUBFOLDER_ID}: ${MCP_JSON:0:400}"
+api_pass "get_folder type=shortcut excludes folders"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: get_folder mode=browse type=folder (must include the nested folder)"
+mcp_call '{"jsonrpc":"2.0","id":"mcp-29f","method":"tools/call","params":{"name":"get_folder","arguments":{"mode":"browse","type":"folder","folderId":{"waived":false,"parameter":"'"${MCP_FOLDER_ID}"'"}}}}' \
+  "-u ${TEST_USER}:${TEST_PASS}"
+mcp_pass "get_folder mode=browse type=folder (auth)"
+echo "${MCP_JSON}" | grep -q "${MCP_SUBFOLDER_ID}" \
+  || api_fail "type=folder omitted the nested folder ${MCP_SUBFOLDER_ID}: ${MCP_JSON:0:400}"
+api_pass "get_folder type=folder includes folders"
+
 CALL_NUM=$((CALL_NUM+1))
 echo "  API call ${CALL_NUM}: manage_folder mode=delete nested folder (auth)"
 mcp_call '{"jsonrpc":"2.0","id":"mcp-29b","method":"tools/call","params":{"name":"manage_folder","arguments":{"mode":"delete","folderId":{"waived":false,"parameter":"'"${MCP_SUBFOLDER_ID}"'"}}}}' \

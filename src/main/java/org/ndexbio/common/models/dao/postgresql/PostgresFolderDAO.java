@@ -761,9 +761,9 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    }
 
 	    // Deliberately not guarded by a type check, mirroring the detail path: `type` names the type of
-	    // thing the caller wants to see, and a shortcut TO a network is a way of seeing a network. So
-	    // type=NETWORK yields networks plus network-targeted shortcuts, and type=SHORTCUT yields nothing
-	    // at all, because target_type is only ever FOLDER or NETWORK.
+	    // thing the caller wants to see, and a shortcut TO a network is a way of seeing a network, so
+	    // type=NETWORK yields networks plus network-targeted shortcuts. type=SHORTCUT is the one value
+	    // that asks for shortcuts themselves, so it constrains nothing about the target.
 	    {
 	        StringBuilder a = new StringBuilder(
 	                "SELECT s.\"UUID\" AS id, 'SHORTCUT'::text AS item_type, s.modification_time AS mtime"
@@ -771,7 +771,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	        a.append(home ? "s.owneruuid=? AND s.parent IS NULL" : "s.parent=?");
 	        a.append(" AND s.is_deleted=false");
 	        binds.add(contextId);
-	        if (type != null) {
+	        if (type != null && type != FileType.SHORTCUT) {
 	            a.append(" AND s.target_type=?");
 	            binds.add(type.toString());
 	        }
@@ -989,7 +989,10 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
         + "WHERE "
 	        + (home ? "s.owneruuid=? AND s.parent IS NULL" : "s.parent=?")
 	        + " AND s.is_deleted=false";
-	    if (type != null) {
+	    // A SHORTCUT filter asks for shortcuts themselves, so it must not constrain target_type -- no
+	    // shortcut targets a shortcut, and filtering on that matched nothing at all.
+	    boolean filterOnTarget = type != null && type != FileType.SHORTCUT;
+	    if (filterOnTarget) {
 	        sql += " AND s.target_type=?";
 	    }
 	    if (childReadClauses != null) {
@@ -1001,7 +1004,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    try (PreparedStatement pst = db.prepareStatement(sql)) {
 	        pst.setObject(1, contextId);
 	        int idIndex = 2;
-	        if (type != null) {
+	        if (filterOnTarget) {
 	            pst.setString(2, type.toString());
 	            idIndex = 3;
 	        }

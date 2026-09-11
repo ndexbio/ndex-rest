@@ -16,14 +16,8 @@ caller's top level, paginates with `start`/`size`, and enforces per-child visibi
 endpoints never did. [#163](https://github.com/ndexbio/ndex-rest/issues/163)
   - Your folders: `GET /v3/files/folders/home/list?type=folder`, keeping entries whose `type` is
   `folder` — folder-targeted shortcuts are returned alongside them by design.
-  - Your shortcuts: `GET /v3/files/folders/home/list` with **no** `type` filter, keeping entries whose
-  `type` is `shortcut`.
-  - **`?type=shortcut` returns an empty array by design** — the trap a quick migration will hit.
-  `type` asks *what kind of thing do you want to see*, and a shortcut is a way of seeing something
-  rather than a thing in its own right. So `type=folder` returns folders **and** shortcuts pointing at
-  folders, `type=network` returns networks **and** shortcuts pointing at networks, and nothing ever
-  points at a shortcut — hence the empty array. To list shortcuts, omit `type` and filter the results
-  yourself, as in the bullet above.
+  - Your shortcuts: `GET /v3/files/folders/home/list?type=shortcut` (see Fixed — this filter used to
+  return nothing and now works).
   - **Behavior change:** the replacement is per-level, not flat any-depth — one call returns only the
   items directly under the folder named, so enumerating a whole tree now costs one call per folder. It
   also returns `FileItemSummary` rather than `NdexFolder`/`NdexShortcut`.
@@ -79,6 +73,17 @@ exactly as before, and the REST endpoint's own default is unchanged.
 [#163](https://github.com/ndexbio/ndex-rest/issues/163)
 
 ### Fixed
+
+- **`?type=shortcut` on `GET /v3/files/folders/{folderid}/list` returned an empty array; it now returns
+the shortcuts.** A shortcut is a pointer at a folder or a network, so it counts as a way of seeing
+whatever it points at — `type=folder` returns folders plus shortcuts pointing at folders, and
+`type=network` likewise. `type=shortcut` is the one value that asks for shortcuts themselves, but it
+was being applied to what each shortcut *points at*, and nothing points at a shortcut, so it always
+matched zero rows. Listing shortcuts no longer needs an unfiltered call and client-side filtering, and
+`/list` no longer contradicts `/count`, which has always reported a shortcut count.
+[#163](https://github.com/ndexbio/ndex-rest/issues/163)
+  - Additive in practice: this filter previously returned nothing, so no caller can have depended on
+  its results. `type=folder` and `type=network` are unchanged.
 
 - **The `format` parameter's two views were documented backwards.** `compact` is the **fuller** view —
 it adds `description` and `visibility` (plus `edgecount` for networks and `creationTime` for folders) —

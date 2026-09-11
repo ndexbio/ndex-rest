@@ -112,6 +112,10 @@ public class GetFolderTool {
             .property("type", new McpSchema.InputProperty("string",
                 "Optional. Filters items by type when mode='browse'. " +
                 "When omitted, all item types are returned. " +
+                "A shortcut is a pointer at a folder or a network, so it counts as a way of seeing " +
+                "whatever it points at: 'folder' returns folders plus shortcuts pointing at folders, " +
+                "'network' returns networks plus shortcuts pointing at networks, and 'shortcut' " +
+                "returns shortcuts only, whatever they point at. " +
                 "Ignored for all other modes.\n\n" +
                 "Examples: \"network\", \"folder\", \"shortcut\"",
                 List.of("network", "folder", "shortcut")))

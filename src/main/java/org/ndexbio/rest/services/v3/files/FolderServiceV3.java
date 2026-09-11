@@ -439,10 +439,12 @@ public class FolderServiceV3 extends NdexService {
 
 					Query Parameters:
 					- format: Optional. "compact" or "update" (default). Controls level of detail in response.
-					- type: Optional. Filter by type: "network", "folder", or null for all types.
-					A type of "shortcut" returns an empty array by design: the filter selects a shortcut's
-					TARGET, and a target is only ever a folder or a network. Conversely "network" returns
-					networks *and* network-targeted shortcuts.
+					- type: Optional. "folder", "network" or "shortcut". Omit it to get everything.
+					A shortcut is a pointer at a folder or a network, so it counts as a way of seeing
+					whatever it points at:
+					* "folder"   returns folders, plus shortcuts pointing at folders
+					* "network"  returns networks, plus shortcuts pointing at networks
+					* "shortcut" returns shortcuts only, whatever they point at
 					- accesskey: Optional. Access key for anonymous access
 					- start: Optional. Zero-based index of the first item to return (default: 0). A negative
 					value is rejected with 400. A non-numeric value is a parameter-conversion failure and

@@ -1751,6 +1751,41 @@ echo "${VIS_S_GET2}" | grep -qE '"visibility"[[:space:]]*:[[:space:]]*"PRIVATE"'
   || api_fail "shortcut update did not change visibility to PRIVATE. Body: ${VIS_S_GET2:0:300}"
 api_pass "PUT shortcut visibility=PRIVATE applied; GET reports PRIVATE"
 
+# ── /list type filter: shortcut is a first-class type (#163) ─────────────────────────────────────────
+# Fixtures: VIS_F_ID is a folder at home root; VIS_S_ID is a shortcut at home root POINTING AT it.
+# A shortcut counts as a way of seeing whatever it points at, so:
+#   type=folder   -> the folder AND the shortcut pointing at it
+#   type=shortcut -> the shortcut only (this used to return an empty array)
+#   type=network  -> neither, since nothing here is or points at a network
+step "Folder listing type filter: folder / shortcut / network (#163)"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: GET /v3/files/folders/home/list?type=shortcut — must return the shortcut"
+T_SC=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/home/list?type=shortcut")
+echo "${T_SC}" | grep -q "${VIS_S_ID}" \
+  || api_fail "type=shortcut omitted shortcut ${VIS_S_ID}; the filter is still matching on target_type. Body: ${T_SC:0:400}"
+echo "${T_SC}" | grep -q "${VIS_F_ID}" \
+  && api_fail "type=shortcut must not return the folder ${VIS_F_ID}. Body: ${T_SC:0:400}"
+api_pass "type=shortcut returns shortcuts and nothing else"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: GET /v3/files/folders/home/list?type=folder — folder AND the shortcut to it"
+T_FD=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/home/list?type=folder")
+echo "${T_FD}" | grep -q "${VIS_F_ID}" \
+  || api_fail "type=folder omitted folder ${VIS_F_ID}. Body: ${T_FD:0:400}"
+echo "${T_FD}" | grep -q "${VIS_S_ID}" \
+  || api_fail "type=folder must also return the folder-targeted shortcut ${VIS_S_ID}. Body: ${T_FD:0:400}"
+api_pass "type=folder returns folders plus shortcuts pointing at folders"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: GET /v3/files/folders/home/list?type=network — neither fixture"
+T_NW=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/home/list?type=network")
+echo "${T_NW}" | grep -q "${VIS_F_ID}" \
+  && api_fail "type=network must not return the folder ${VIS_F_ID}. Body: ${T_NW:0:400}"
+echo "${T_NW}" | grep -q "${VIS_S_ID}" \
+  && api_fail "type=network must not return a folder-targeted shortcut ${VIS_S_ID}. Body: ${T_NW:0:400}"
+api_pass "type=network excludes folders and folder-targeted shortcuts"
+
 # ── Removed endpoints leave no trace in the generated OpenAPI spec (#163) ────────────────────────────
 # The spec is generated at runtime from the @Operation annotations, so the deleted GET handlers can
 # only vanish from it if their annotations are truly gone. The summaries below were unique to them.
