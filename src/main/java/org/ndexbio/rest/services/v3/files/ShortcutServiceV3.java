@@ -183,7 +183,7 @@ public class ShortcutServiceV3 extends NdexService {
 
 			dao.deleteShortcut(shortcutId, permanent);
 			dao.commit();
-			deleteFileIndex(shortcutId, visibilityType);
+			deleteFileIndex(shortcutId);
 
 		}
 	}

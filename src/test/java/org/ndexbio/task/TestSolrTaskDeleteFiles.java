@@ -82,7 +82,7 @@ public class TestSolrTaskDeleteFiles {
 	public void aPersistedSingleNetworkDeleteStillReconstructsAsOne() throws Exception {
 		// Rows written before this task existed carry no id-list attributes and must keep taking the
 		// original path — the discrimination has to be backward compatible.
-		Task legacy = new SolrTaskDeleteNetwork(NETWORK, true, null).createTask();
+		Task legacy = new SolrTaskDeleteNetwork(NETWORK, true).createTask();
 
 		NdexSystemTask restored = NdexSystemTask.createSystemTask(legacy);
 

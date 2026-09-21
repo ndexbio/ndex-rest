@@ -567,24 +567,27 @@ public class SearchServiceV3 extends NdexService  {
 	@Consumes("application/json")
 	public FileSearchResult searchFiles(
 			final SimpleFileQuery query,
-			@Parameter(description = "Data set to search: PUBLIC or PRIVATE (defaults to PUBLIC when "
-					+ "unset). PRIVATE requires authentication with user credentials; an anonymous "
-					+ "PRIVATE request is rejected. UNLISTED is not a valid search mode and is rejected "
-					+ "with 400.")
+			@Parameter(description = "Optional filter narrowing results to one data set: PUBLIC or "
+					+ "PRIVATE. Omit it to search everything the caller may see — public files plus, "
+					+ "when authenticated, their own private and unlisted files and everything shared "
+					+ "with them — returned as one ranked result set. PUBLIC returns public files plus "
+					+ "the caller's own unlisted ones. PRIVATE requires authentication with user "
+					+ "credentials; an anonymous PRIVATE request is rejected. UNLISTED is not a valid "
+					+ "search mode and is rejected with 400.")
 			@QueryParam("visibility") VisibilityType visibilityType,
 			@BeanParam PagingParameters paging)
 		throws SQLException, Exception {
 
 		accLogger.info("[data]\t[acc:"+ query.getAccountName() + "]\t[query:" +query.getSearchString() + "]" );
-		if (visibilityType == null){
-			visibilityType = VisibilityType.PUBLIC;
-		}
+		// A null visibility is left null: it means "everything this caller may see", returned as one
+		// ranked result set. It used to default to PUBLIC, which forced a caller wanting both their
+		// public and private files to ask twice and merge two incomparable relevance scales.
 		if (visibilityType == VisibilityType.UNLISTED) {
 			throw new BadRequestException("Invalid 'visibility' value: UNLISTED. Use PUBLIC or PRIVATE.");
 		}
 		User user = getLoggedInUser();
 		//todo allow non logged in user?
-		if (user == null && visibilityType.equals(VisibilityType.PRIVATE)) {
+		if (user == null && visibilityType == VisibilityType.PRIVATE) {
 			throw new UnauthorizedOperationException("You must be logged in to search private files.");
 		}
     	if(query.getAccountName() != null)

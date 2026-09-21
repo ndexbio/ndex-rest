@@ -460,20 +460,35 @@ fi
 
 # ── Phase 5: Setup Solr ───────────────────────────────────────────────────────
 if [[ "${ENABLE_SOLR}" == "true" ]]; then
+  # Configsets are installed on EVERY start, deliberately outside the .initialized gate below.
+  # /apps is a persistent volume, so that sentinel survives an image upgrade — and an upgrade is
+  # exactly when a newly added configset has to reach SOLR_HOME. Gating this meant a new image
+  # silently delivered nothing, and the first search then failed against a core Solr created from
+  # its default configset, whose schema lacks parentUuid and entityType.
+  #
+  # The image is the source of truth for configsets, so copying over them every start is safe.
+  # Configsets come from a Dockerfile COPY of src/main/resources/solr/.
+  #
+  # public-nfs and private-nfs are still installed: a container upgraded onto an existing volume
+  # still carries those cores, whose core.properties reference them. They go when those cores are
+  # decommissioned.
+  echo "==> Installing Solr configsets..."
+  mkdir -p /apps/solr/data/configsets
+  for cs in ndex-networks ndex-nodes ndex-users ndex-nfs public-nfs private-nfs; do
+    if [[ -d "/opt/ndex-install/solr-configsets/${cs}" ]]; then
+      cp -r "/opt/ndex-install/solr-configsets/${cs}" /apps/solr/data/configsets/
+    fi
+  done
+  # ndex-nodes-template = copy of ndex-nodes (template for per-network node indices)
+  cp -r /apps/solr/data/configsets/ndex-nodes /apps/solr/data/configsets/ndex-nodes-template
+  chown -R solr:solr /apps/solr/data/configsets
+
   if [[ ! -f /apps/solr/data/.initialized ]]; then
     echo "==> Setting up Solr..."
 
     # solr.xml must be at SOLR_HOME
     cp /apps/solr/config/solr.xml /apps/solr/data/
     chown solr:solr /apps/solr/data/solr.xml
-
-    # Copy configsets (extracted from WAR at image build time)
-    mkdir -p /apps/solr/data/configsets
-    for cs in ndex-networks ndex-nodes ndex-users public-nfs private-nfs; do
-      cp -r "/opt/ndex-install/solr-configsets/${cs}" /apps/solr/data/configsets/
-    done
-    # ndex-nodes-template = copy of ndex-nodes (template for per-network node indices)
-    cp -r /apps/solr/data/configsets/ndex-nodes /apps/solr/data/configsets/ndex-nodes-template
     chown -R solr:solr /apps/solr/data
 
     # No security.json — Solr listens on 127.0.0.1 inside the container only,

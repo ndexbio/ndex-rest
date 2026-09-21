@@ -72,13 +72,11 @@ public class SolrTaskDeleteFiles extends NdexSystemTask {
 		try (FolderIndexManager globalIdx = solrObjectFactory.getFolderIndexManager()) {
 			for (UUID id : ids.all()) {
 				String idStr = id.toString();
-				globalIdx.delete(idStr, VisibilityType.PRIVATE);
-				globalIdx.delete(idStr, VisibilityType.PUBLIC);
+				globalIdx.delete(idStr);
 			}
-			// Commit both cores explicitly rather than waiting on Solr autoCommit, so a search
-			// immediately after the delete does not still see the removed docs.
-			globalIdx.commit(VisibilityType.PRIVATE);
-			globalIdx.commit(VisibilityType.PUBLIC);
+			// Commit explicitly rather than waiting on Solr autoCommit, so a search immediately after
+			// the delete does not still see the removed docs.
+			globalIdx.commit();
 		}
 
 		// A network may additionally own a per-network node query index. That core is keyed by name,

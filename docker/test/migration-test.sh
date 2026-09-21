@@ -204,6 +204,18 @@ expect "owner still sees their own network" \
 expect "before the reindex, the grantee cannot yet FIND the shared network" \
   "$(found "${GRANTEE}:${GRANTEE_PW}" "${M_NET}")" no
 
+# ── the core merge: ndex-nfs must exist and be empty before the rebuild ───────
+# /apps is a persistent volume, so .initialized survives the image swap. Configset installation
+# therefore runs on every start rather than behind that sentinel — without that, this core would be
+# created from Solr's default configset and its schema would silently lack parentUuid and entityType.
+# Asserting the empty-then-populated transition is what proves the rebuild did the work.
+expect "the ndex-nfs core exists on the upgraded container" \
+  "$(docker exec "${CONTAINER}" bash -c "curl -s 'http://localhost:8983/solr/admin/cores?action=STATUS&core=ndex-nfs&indexInfo=false&wt=json' | grep -q ndex-nfs && echo yes || echo no")" yes
+expect "its configset was installed despite .initialized already existing" \
+  "$(docker exec "${CONTAINER}" bash -c "test -f /apps/solr/data/configsets/ndex-nfs/conf/schema.xml && echo yes || echo no")" yes
+expect "ndex-nfs is empty before the rebuild" \
+  "$(docker exec "${CONTAINER}" bash -c "curl -s 'http://localhost:8983/solr/ndex-nfs/select?q=*:*&rows=0&wt=json'" 2>/dev/null | grep -oE '"numFound":[0-9]+' | grep -oE '[0-9]+$')" 0
+
 MIG_PW=$(docker exec "${CONTAINER}" bash -c "grep '^MigrationPassword=' /apps/ndex/config/ndex.properties | cut -d= -f2-" | tr -d '[:space:]')
 [[ -n "${MIG_PW}" ]] || die "could not read MigrationPassword for the backfill reindex"
 REIDX_HTTP=$(code "${BASE_URL}/v3/admin/reindex-v3?password=${MIG_PW}")
@@ -214,9 +226,20 @@ expect "after the reindex, the grantee FINDS a network shared before the upgrade
 expect "the owner finds it too" \
   "$(found "${OWNER}:${OWNER_PW}" "${M_NET}")" yes
 expect "the backfill wrote parentUuid onto the network document" \
-  "$(docker exec "${CONTAINER}" bash -c "curl -s 'http://localhost:8983/solr/private-nfs/select?q=uuid:${M_NET}&fq=parentUuid:${M_FOLDER}&rows=0&wt=json'" 2>/dev/null | grep -oE '"numFound":[0-9]+' | grep -oE '[0-9]+$')" 1
-expect "the rebuild dropped the stale access list from the document" \
-  "$(docker exec "${CONTAINER}" bash -c "curl -s 'http://localhost:8983/solr/private-nfs/select?q=uuid:${M_NET}&fq=userRead:*&rows=0&wt=json'" 2>/dev/null | grep -oE '"numFound":[0-9]+' | grep -oE '[0-9]+$')" 0
+  "$(docker exec "${CONTAINER}" bash -c "curl -s 'http://localhost:8983/solr/ndex-nfs/select?q=uuid:${M_NET}&fq=parentUuid:${M_FOLDER}&rows=0&wt=json'" 2>/dev/null | grep -oE '"numFound":[0-9]+' | grep -oE '[0-9]+$')" 1
+# The stale copied-on access list is now gone at the schema level rather than merely unpopulated:
+# ndex-nfs declares no userRead/userEdit at all. Asserting that is stronger than asserting no
+# document carries one — and it is the only form that works, since querying fq=userRead:* against a
+# schema without the field is an error rather than a zero-hit search.
+expect "ndex-nfs declares no stale access-list fields" \
+  "$(docker exec "${CONTAINER}" bash -c "curl -s 'http://localhost:8983/solr/ndex-nfs/schema/fields?wt=json'" 2>/dev/null | grep -cE '"name":"(userRead|userEdit)"')" 0
+
+# The old cores are the rollback path for this release, so the rebuild must leave them alone. They
+# exist here only because the released image created them; a fresh install never has them.
+PRE_MERGE_DOCS=$(docker exec "${CONTAINER}" bash -c "curl -s 'http://localhost:8983/solr/private-nfs/select?q=*:*&rows=0&wt=json'" 2>/dev/null | grep -oE '"numFound":[0-9]+' | grep -oE '[0-9]+$' || echo 0)
+[[ "${PRE_MERGE_DOCS}" -gt 0 ]] \
+  && ok "private-nfs still holds its ${PRE_MERGE_DOCS} pre-upgrade documents (rollback path intact)" \
+  || die "the rebuild emptied private-nfs — the rollback path for this release is gone"
 
 echo ""
 echo -e "${GREEN}${BOLD}================================================${NC}"

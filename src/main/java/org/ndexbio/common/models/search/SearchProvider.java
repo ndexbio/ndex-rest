@@ -19,7 +19,7 @@ public interface SearchProvider extends AutoCloseable {
 	 * File search
 	 * 
 	 * @param query Search query
-	 * @param visibilityType Denotes whether the search is for private or public data
+	 * @param visibilityType Optional narrowing to one visibility partition; null searches everything the caller may see
 	 * @param skipBlocks Search offset
 	 * @param blockSize Number of results to return
 	 * @return Result of search

@@ -166,10 +166,16 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
      * @param includeShortcuts when true, also folds in SHORTCUT docs whose targetType
      * is NETWORK (v3 behavior); when false, returns only NETWORK docs (v2 behavior).
      */
+    /**
+     * Network search across everything the caller may see.
+     *
+     * <p>No visibility narrowing is offered: the v2 endpoint this serves has never exposed such a
+     * parameter. It used to issue two calls — one per core — and concatenate them, which summed
+     * {@code numFound} and paginated each core independently. One call over one core replaces that.</p>
+     */
     public SolrDocumentList searchForNetworks(
             String searchTerms,
             String userAccount,
-            VisibilityType visibilityType,
             int limit,
             int offset,
             String adminedBy,
@@ -177,7 +183,7 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
             boolean includeShortcuts,
             SearchScope scope) throws IOException, SolrServerException, NdexException {
 
-        return searchByType(searchTerms, userAccount, visibilityType, limit, offset,
+        return searchByType(searchTerms, userAccount, null, limit, offset,
                 adminedBy, permission, FileType.NETWORK.toString(), includeShortcuts, scope);
     }
 

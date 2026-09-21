@@ -718,11 +718,11 @@ api_pass "POST /v2/search/network → 200 OK, WP1984 UUID found in results (Solr
 step "Searching v3-uploaded CX2 networks via POST /v3/search/files (authenticated)"
 
 # V3_UUIDS[0] = BindingDB (first public CX2 network). Use the new v3 global search endpoint
-# which queries public-nfs directly. Requires authentication.
+# which queries the ndex-nfs core directly. Requires authentication.
 CALL_NUM=$((CALL_NUM+1))
 echo "  API call ${CALL_NUM}: POST /v3/search/files?visibility=PUBLIC (auth, expect 200 + UUID)"
 
-# Poll until the UUID appears — public-nfs Solr commit can be async (especially
+# Poll until the UUID appears — the Solr commit can be async (especially
 # with bind-mounted data directories where host filesystem I/O adds latency).
 ELAPSED=0
 SEARCH_BODY=""
@@ -745,9 +745,9 @@ while true; do
     api_fail "POST /v3/search/files (BindingDB) → 200 OK but UUID ${V3_UUIDS[0]} not found within ${LOAD_TIMEOUT}s. Body: ${SEARCH_BODY:0:500}"
   fi
   sleep 3; (( ELAPSED += 3 )) || true
-  echo "  Waiting for public-nfs Solr index... (${ELAPSED}s)"
+  echo "  Waiting for Solr index... (${ELAPSED}s)"
 done
-api_pass "POST /v3/search/files → 200 OK, BindingDB UUID found in results (CX2 public-nfs confirmed)"
+api_pass "POST /v3/search/files → 200 OK, BindingDB UUID found in results (CX2 indexing confirmed)"
 
 # ── STEP: v3 /search/files neutralizes Solr filter injection (F4) ────────────
 # A crafted accountName that tries to OR-in a match-all clause must be escaped so it
@@ -1819,14 +1819,14 @@ api_pass "POST creates and the replacement listing operation are still documente
 
 # ── STEP: Visibility change fully reindexes in Solr (drop from old core, add to new) ──
 # Proves the reviewer's concern on PR #129: a PRIVATE→PUBLIC update moves the entry between
-# the private-nfs and public-nfs cores with no orphaned copy left in the old core. Search is
+# two cores with no orphan left behind. Search is
 # async (soft commit ≤5s), so each assertion polls until convergence.
 step "Visibility change reindexes folder/shortcut across Solr cores (no orphan)"
 
 VM_FOLDER_NAME="vismovefolder${RANDOM}${RANDOM}"
 VM_SHORTCUT_NAME="vismoveshortcut${RANDOM}${RANDOM}"
 
-# --- Folder: create PRIVATE, confirm indexed in private-nfs ---
+# --- Folder: create PRIVATE, confirm indexed as PRIVATE ---
 CALL_NUM=$((CALL_NUM+1))
 echo "  API call ${CALL_NUM}: POST /v3/files/folders/ (create PRIVATE for reindex-move test)"
 VM_F_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
@@ -1838,11 +1838,11 @@ VM_F_ID=$(echo "${VM_F_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a
 [[ -n "${VM_F_ID}" ]] || api_fail "no uuid in move-test folder create body. Body: ${VM_F_BODY:0:300}"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}: search files visibility=PRIVATE (folder indexed in private-nfs)"
+echo "  API call ${CALL_NUM}: search files visibility=PRIVATE (folder indexed as PRIVATE)"
 poll_files_until_present "PRIVATE" "${VM_FOLDER_NAME}" "${VM_F_ID}" "folder pre-move"
-api_pass "folder ${VM_F_ID} indexed under PRIVATE (private-nfs)"
+api_pass "folder ${VM_F_ID} indexed under PRIVATE"
 
-# --- Folder: flip to PUBLIC, confirm moved to public-nfs and dropped from private-nfs ---
+# --- Folder: flip to PUBLIC, confirm it now reads PUBLIC and no longer matches PRIVATE ---
 CALL_NUM=$((CALL_NUM+1))
 echo "  API call ${CALL_NUM}: PUT /v3/files/folders/{id} visibility=PUBLIC"
 VM_F_PUT=$(curl -s -o /dev/null -w "%{http_code}" -X PUT -u "${TEST_USER}:${TEST_PASS}" \
@@ -1851,14 +1851,24 @@ VM_F_PUT=$(curl -s -o /dev/null -w "%{http_code}" -X PUT -u "${TEST_USER}:${TEST
 [[ "${VM_F_PUT}" == "204" || "${VM_F_PUT}" == "200" ]] || api_fail "PUT move-test folder visibility → HTTP ${VM_F_PUT}"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}: search files visibility=PUBLIC (folder now in public-nfs)"
-poll_files_until_present "PUBLIC" "${VM_FOLDER_NAME}" "${VM_F_ID}" "folder post-move (new core)"
+echo "  API call ${CALL_NUM}: search files visibility=PUBLIC (folder now reads as PUBLIC)"
+poll_files_until_present "PUBLIC" "${VM_FOLDER_NAME}" "${VM_F_ID}" "folder post-move (new visibility)"
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}: search files visibility=PRIVATE (folder dropped from private-nfs)"
-poll_files_until_absent "PRIVATE" "${VM_FOLDER_NAME}" "${VM_F_ID}" "folder post-move (old core)"
-api_pass "folder visibility PRIVATE→PUBLIC fully reindexed: present in public-nfs, absent from private-nfs (no orphan)"
+echo "  API call ${CALL_NUM}: search files visibility=PRIVATE (folder no longer matches PRIVATE)"
+poll_files_until_absent "PRIVATE" "${VM_FOLDER_NAME}" "${VM_F_ID}" "folder post-move (old visibility)"
 
-# --- Shortcut: create PRIVATE (target the move-test folder), confirm indexed in private-nfs ---
+# The upsert assertion: re-indexing replaces the document rather than adding a second copy. Without
+# this, a rebuild that stopped replacing would still satisfy both polls above.
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: ndex-nfs holds exactly one document for the folder"
+VM_F_COUNT=$(docker exec "${CONTAINER_NAME}" bash -c \
+  "curl -s 'http://localhost:8983/solr/ndex-nfs/select?q=uuid:${VM_F_ID}&rows=0&wt=json'" 2>/dev/null \
+  | grep -oE '"numFound":[0-9]+' | grep -oE '[0-9]+$' || true)
+[[ "${VM_F_COUNT}" == "1" ]] \
+  || api_fail "visibility change duplicated the folder document: numFound=${VM_F_COUNT:-unset} for ${VM_F_ID}"
+api_pass "folder visibility PRIVATE→PUBLIC rewritten in place: matches PUBLIC, no longer matches PRIVATE, exactly one document"
+
+# --- Shortcut: create PRIVATE (target the move-test folder), confirm indexed as PRIVATE ---
 CALL_NUM=$((CALL_NUM+1))
 echo "  API call ${CALL_NUM}: POST /v3/files/shortcuts/ (create PRIVATE for reindex-move test)"
 VM_S_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
@@ -1871,11 +1881,11 @@ VM_S_ID=$(echo "${VM_S_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:space:]]*"[0-9a
 [[ -n "${VM_S_ID}" ]] || api_fail "no uuid in move-test shortcut create body. Body: ${VM_S_BODY:0:300}"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}: search files visibility=PRIVATE (shortcut indexed in private-nfs)"
+echo "  API call ${CALL_NUM}: search files visibility=PRIVATE (shortcut indexed as PRIVATE)"
 poll_files_until_present "PRIVATE" "${VM_SHORTCUT_NAME}" "${VM_S_ID}" "shortcut pre-move"
-api_pass "shortcut ${VM_S_ID} indexed under PRIVATE (private-nfs)"
+api_pass "shortcut ${VM_S_ID} indexed under PRIVATE"
 
-# --- Shortcut: flip to PUBLIC, confirm moved to public-nfs and dropped from private-nfs ---
+# --- Shortcut: flip to PUBLIC, confirm it now reads PUBLIC and no longer matches PRIVATE ---
 CALL_NUM=$((CALL_NUM+1))
 echo "  API call ${CALL_NUM}: PUT /v3/files/shortcuts/{id} visibility=PUBLIC"
 VM_S_PUT=$(curl -s -o /dev/null -w "%{http_code}" -X PUT -u "${TEST_USER}:${TEST_PASS}" \
@@ -1884,12 +1894,12 @@ VM_S_PUT=$(curl -s -o /dev/null -w "%{http_code}" -X PUT -u "${TEST_USER}:${TEST
 [[ "${VM_S_PUT}" == "204" || "${VM_S_PUT}" == "200" ]] || api_fail "PUT move-test shortcut visibility → HTTP ${VM_S_PUT}"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}: search files visibility=PUBLIC (shortcut now in public-nfs)"
+echo "  API call ${CALL_NUM}: search files visibility=PUBLIC (shortcut now reads as PUBLIC)"
 poll_files_until_present "PUBLIC" "${VM_SHORTCUT_NAME}" "${VM_S_ID}" "shortcut post-move (new core)"
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}: search files visibility=PRIVATE (shortcut dropped from private-nfs)"
+echo "  API call ${CALL_NUM}: search files visibility=PRIVATE (shortcut no longer matches PRIVATE)"
 poll_files_until_absent "PRIVATE" "${VM_SHORTCUT_NAME}" "${VM_S_ID}" "shortcut post-move (old core)"
-api_pass "shortcut visibility PRIVATE→PUBLIC fully reindexed: present in public-nfs, absent from private-nfs (no orphan)"
+api_pass "shortcut visibility PRIVATE→PUBLIC rewritten in place: matches PUBLIC, no longer matches PRIVATE"
 
 # ── STEP: issue #162 — searchFiles must report visibility on FOLDER results ───
 # NETWORK items in a /v3/search/files response carry "visibility"; FOLDER items omit the key
@@ -1898,15 +1908,15 @@ api_pass "shortcut visibility PRIVATE→PUBLIC fully reindexed: present in publi
 # @JsonInclude(NON_NULL), so the unset field is dropped rather than serialized as null. The
 # NETWORK mapper and the shortcut DAO both set it, making FOLDER the lone outlier.
 #
-# Both cores are covered (PUBLIC → public-nfs, PRIVATE → private-nfs) so the fix cannot be
-# satisfied by emitting a hardcoded constant.
+# Both partitions are covered (PUBLIC and PRIVATE) so the fix cannot be satisfied by emitting a
+# hardcoded constant.
 #
-# The folder names MUST stay unique and randomized. `visibility` on this endpoint selects the
-# Solr core, it is not a row filter: PUBLIC and UNLISTED both live in public-nfs, and the public
-# core's permission filter is "exclude UNLISTED OR userAdmin:<me>", so an authenticated owner
-# searching visibility=PUBLIC legitimately gets their own UNLISTED folders back — and TEST_USER
-# owns one by now (the vis-folder flipped to UNLISTED earlier). A broader searchString would
-# match those too and make the assertion below meaningless.
+# The folder names MUST stay unique and randomized. `visibility=PUBLIC` narrows to the partition
+# the old public core held, which is PUBLIC *or* UNLISTED, and the permission filter admits the
+# caller's own documents whatever their visibility. So an authenticated owner searching
+# visibility=PUBLIC legitimately gets their own UNLISTED folders back — and TEST_USER owns one by
+# now (the vis-folder flipped to UNLISTED earlier). A broader searchString would match those too
+# and make the assertion below meaningless.
 step "searchFiles reports visibility on FOLDER results (issue #162)"
 
 F162_PUB_NAME="visfolder162pub${RANDOM}${RANDOM}"
@@ -1925,7 +1935,7 @@ F162_PUB_ID=$(echo "${F162_PUB_CREATE_BODY}" | grep -oiE '"uuid"[[:space:]]*:[[:
 [[ -n "${F162_PUB_ID}" ]] || api_fail "no uuid in issue-#162 PUBLIC folder create body. Body: ${F162_PUB_CREATE_BODY:0:300}"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}: search files visibility=PUBLIC (folder indexed in public-nfs)"
+echo "  API call ${CALL_NUM}: search files visibility=PUBLIC (folder indexed as PUBLIC)"
 poll_files_until_present "PUBLIC" "${F162_PUB_NAME}" "${F162_PUB_ID}" "issue #162 public folder"
 
 # No `type` in the request body — this mirrors the anonymous curl in the ticket, which went
@@ -1960,7 +1970,7 @@ F162_PRIV_ID=$(echo "${F162_PRIV_CREATE_BODY}" | grep -oiE '"uuid"[[:space:]]*:[
 [[ -n "${F162_PRIV_ID}" ]] || api_fail "no uuid in issue-#162 PRIVATE folder create body. Body: ${F162_PRIV_CREATE_BODY:0:300}"
 
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}: search files visibility=PRIVATE (folder indexed in private-nfs)"
+echo "  API call ${CALL_NUM}: search files visibility=PRIVATE (folder indexed as PRIVATE)"
 poll_files_until_present "PRIVATE" "${F162_PRIV_NAME}" "${F162_PRIV_ID}" "issue #162 private folder"
 
 CALL_NUM=$((CALL_NUM+1))
@@ -2250,7 +2260,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
 
   # Solr: v2-created sets must be searchable through v3. Indexing is async, hence the poll.
   poll_files_until_present PRIVATE "${NS_NAME}" "${NS_ID}" "networkset create indexing"
-  api_pass "new set is indexed in private-nfs and findable via POST /v3/search/files"
+  api_pass "new set is indexed and findable via POST /v3/search/files"
 
   # ── 2) POST /{id}/members → adds each network as a SHORTCUT ─────────────────────────────────────
   CALL_NUM=$((CALL_NUM+1))
@@ -2286,7 +2296,7 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
 
   # Each member shortcut must be indexed in its own right, not just the folder.
   poll_files_until_present PRIVATE "${NS_SC_PUB}" "${NS_SC_PUB}" "member shortcut indexing"
-  api_pass "member shortcuts are indexed individually in private-nfs"
+  api_pass "member shortcuts are indexed individually"
 
   # Rejects the whole request when any posted id is unreadable — nothing partially created.
   CALL_NUM=$((CALL_NUM+1))
@@ -3033,9 +3043,9 @@ p_search() { # auth(or empty) uuid [visibility] -> yes|no
 p_wait_indexed() { # auth uuid label [visibility]
   local elapsed=0
   until [[ "$(p_search "$1" "$2" "${4:-PRIVATE}")" == yes ]]; do
-    [[ ${elapsed} -ge ${LOAD_TIMEOUT} ]] && api_fail "#165 search: $3 ($2) never reached ${4:-PRIVATE}-nfs within ${LOAD_TIMEOUT}s"
+    [[ ${elapsed} -ge ${LOAD_TIMEOUT} ]] && api_fail "#165 search: $3 ($2) never reached the ${4:-PRIVATE} partition within ${LOAD_TIMEOUT}s"
     sleep 3; (( elapsed += 3 )) || true
-    echo "  Waiting for ${4:-PRIVATE}-nfs to index $3... (${elapsed}s)"
+    echo "  Waiting for $3 to be indexed and visible under ${4:-PRIVATE}... (${elapsed}s)"
   done
 }
 
@@ -3043,7 +3053,7 @@ p_wait_indexed() { # auth uuid label [visibility]
 # That keeps "the document is indexed" separate from "folder propagation works" — the
 # assertions immediately below are the ones that test propagation.
 p_wait_indexed "${B_AUTH}" "${P_NET_B}" "network added to the shared folder"
-api_pass "network added after the grant reached private-nfs"
+api_pass "network added after the grant reached the index"
 
 # A grantee finds folder-propagated content with no re-share and no reindex. The moved
 # network additionally proves reindex-on-move: /v3/batch/networks/move must rewrite that
@@ -3098,7 +3108,7 @@ p_expect "the cross-owner target is still findable by the user who owns it" \
 
 # parentUuid must actually be on the document — the whole query-time scheme rests on it.
 P_PARENT_HITS=$(docker exec "${CONTAINER_NAME}" bash -c \
-  "curl -s 'http://localhost:8983/solr/private-nfs/select?q=uuid:${P_NET_B}&fq=parentUuid:${P_FOLDER}&rows=0&wt=json'" 2>/dev/null \
+  "curl -s 'http://localhost:8983/solr/ndex-nfs/select?q=uuid:${P_NET_B}&fq=parentUuid:${P_FOLDER}&rows=0&wt=json'" 2>/dev/null \
   | grep -oE '"numFound":[0-9]+' | grep -oE '[0-9]+$' || true)
 p_expect "network document carries parentUuid for its folder" "${P_PARENT_HITS}" 1
 

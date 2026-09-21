@@ -1095,28 +1095,20 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 		try (GlobalNetworkIndexManager networkIdx =
 				Configuration.getInstance().getSolrObjectFactory().getGlobalNetworkIndexManager()) {
 
-			// Always query public-nfs (returns PUBLIC networks + the authenticated user's UNLISTED ones)
-			SolrDocumentList publicResults = networkIdx.searchForNetworks(queryStr,
+			// One query over one core. This used to be two — one per core — concatenated public-first,
+			// which summed numFound and paginated each core independently, so a request for `top` rows
+			// could return up to 2*top and page 2 repeated rows from page 1. The permission filter
+			// admits public documents, the caller's own, and whatever `scope` makes reachable, all in
+			// one relevance ranking.
+			SolrDocumentList searchResults = networkIdx.searchForNetworks(queryStr,
 					(loggedInUser == null ? null : loggedInUser.getUserName()),
-					VisibilityType.PUBLIC, top, skipBlocks * top,
+					top, skipBlocks * top,
 					simpleNetworkQuery.getAccountName(), simpleNetworkQuery.getPermission(), false,
-					SearchScope.EMPTY);
+					scope);
 
-			// If authenticated, also query private-nfs for the user's PRIVATE networks
-			SolrDocumentList privateResults = null;
-			if (loggedInUser != null) {
-				privateResults = networkIdx.searchForNetworks(queryStr,
-						loggedInUser.getUserName(),
-						VisibilityType.PRIVATE, top, skipBlocks * top,
-						simpleNetworkQuery.getAccountName(), simpleNetworkQuery.getPermission(), false,
-						scope);
-			}
+			List<NetworkSummary> results = new ArrayList<>(searchResults.size());
 
-			List<NetworkSummary> results = new ArrayList<>(publicResults.size() +
-					(privateResults != null ? privateResults.size() : 0));
-			long numFound = publicResults.getNumFound();
-
-			for (SolrDocument d : publicResults) {
+			for (SolrDocument d : searchResults) {
 				String id = (String) d.get(GlobalNetworkIndexManager.UUID);
 				try {
 					NetworkSummary s = getNetworkSummaryById(UUID.fromString(id));
@@ -1129,23 +1121,7 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 				}
 			}
 
-			if (privateResults != null) {
-				numFound += privateResults.getNumFound();
-				for (SolrDocument d : privateResults) {
-					String id = (String) d.get(GlobalNetworkIndexManager.UUID);
-					try {
-						NetworkSummary s = getNetworkSummaryById(UUID.fromString(id));
-						if (s != null) {
-							s.setWarnings(emptyStringList);
-							results.add(s);
-						}
-					} catch (ObjectNotFoundException ne) {
-						logger.warning("Network " + id + " was not found in db: " + ne.getMessage());
-					}
-				}
-			}
-
-			return new NetworkSearchResult(numFound, publicResults.getStart(), results);
+			return new NetworkSearchResult(searchResults.getNumFound(), searchResults.getStart(), results);
 		}
 	}
 	

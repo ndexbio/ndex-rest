@@ -684,8 +684,7 @@ public class TestFolderServiceV3 {
             // no-op for testing
         }
         @Override
-        protected void deleteFileIndex(UUID folderUUID,
-                                       VisibilityType visibilityType) throws SQLException, NdexException, IOException {
+        protected void deleteFileIndex(UUID folderUUID) throws SQLException, NdexException, IOException {
 
         }
     }

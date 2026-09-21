@@ -1747,7 +1747,7 @@ public class NetworkServiceV2 extends NdexService {
 							networkDao.commit();
 							NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null,lvl,true));
 						} else
-							NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteNetwork(networkId, true, visibilityType)); //delete the entry from global idx.
+							NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteNetwork(networkId, true)); //delete the entry from global idx.
 														
 					}
 					if ( parameters.containsKey("showcase")) {

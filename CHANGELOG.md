@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [3.0.7] - unreleased
 
+### Changed
+
+- **The `public-nfs` and `private-nfs` Solr cores are now one core, `ndex-nfs`.** Each core computed
+relevance from its own corpus statistics, so their scores were never comparable — measured in
+production, the same query scored 61.12 in one and 70.92 in the other. A caller wanting both their
+public and private files therefore had to search twice and sort the union of two unrelated number
+ranges, which is the root of [#199](https://github.com/ndexbio/ndex-rest/issues/199).
+[#209](https://github.com/ndexbio/ndex-rest/issues/209)
+  - **`POST /v3/search/files` with `visibility` omitted now returns everything the caller may see**,
+  ranked as one result set: public files plus, when authenticated, their own private and unlisted files
+  and everything shared with them. It previously returned public files only. **Anonymous callers are
+  unaffected** — public files were always the whole of their access.
+  - **`visibility=PUBLIC` and `visibility=PRIVATE` return exactly what they returned before.** `PUBLIC`
+  continues to include the caller's own unlisted files, because it narrows on the partition the public
+  core held rather than on the literal field value. `UNLISTED` is still rejected with `400`, and an
+  anonymous `PRIVATE` request is still rejected with `401`.
+  - **`POST /v2/search/network` reports a smaller `numFound`** for authenticated callers. The old value
+  summed two cores and double-counted. Pagination also starts behaving: a request for N rows used to be
+  able to return up to 2N, because each core was paginated independently.
+  - A visibility change now rewrites the indexed document in place rather than moving it between cores,
+  which removes the class of defect that could strand a stale copy in the core a document had left.
+  - **Operators:** the `ndex-nfs` configset must be installed on the Solr server before the upgraded
+  application starts, and `SolrIndexBuilder nfs` (or `GET /v3/admin/reindex-v3`) must then populate the
+  new core. `public-nfs` and `private-nfs` are left untouched as the rollback path. Containers install
+  the configset automatically on start, including on an upgrade over an existing volume.
+
 ### Breaking Changes
 
 - **`GET /v3/files/folders` and `GET /v3/files/shortcuts` have been removed.** Both listed everything

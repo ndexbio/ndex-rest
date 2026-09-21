@@ -220,10 +220,16 @@ public class BatchService extends NdexService {
             UUID uuid = item.getKey();
             FileType type = item.getValue();
             AbstractFileTypeHandler handler = fileTypeHandlerFactory.getHandler(type);
-			VisibilityType oldVisibilityType = getVisibilityForFile(uuid, type);
             handler.setVisibility(uuid, userId, request.getVisibility());
-			deleteFileIndex(uuid, oldVisibilityType, false, type);
-			createFileIndex(uuid, user, request.getVisibility(),type, true);
+			// One task, not a delete-then-create pair. The delete existed to clear the copy in the core
+			// the document was leaving; with one core the re-index upserts on uuid.
+			//
+			// createOnly is false, which is the same work the pair did: the delete carried
+			// globalIdxOnly=false, so it dropped the per-network node core and the rebuild then
+			// recreated it. That drop is not optional — SingleNetworkSolrIdxManager creates its core
+			// unconditionally, so populating one that still exists throws and takes the whole re-index
+			// with it, leaving the document carrying its old visibility.
+			createFileIndex(uuid, user, request.getVisibility(), type, false);
         }
 
         return ;

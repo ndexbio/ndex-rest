@@ -89,7 +89,7 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 			if (!createOnly) {
 				if (idxScope != SolrIndexScope.individual) {
 					try (GlobalNetworkIndexManager globalIdx = Configuration.getInstance().getSolrObjectFactory().getGlobalNetworkIndexManager()) {
-						globalIdx.delete(networkId.toString(), visibilityType);
+						globalIdx.delete(networkId.toString());
 					}
 				}
 				if (idxScope != SolrIndexScope.global)
@@ -203,7 +203,7 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 						}
 					}
 
-					globalIdx.commit(visibilityType);
+					globalIdx.commit();
 				}
 			}
 

@@ -55,9 +55,11 @@ public abstract class NdexSystemTask  {
 				}
 				// Read defensively: a legacy row can be missing globalIdxOnly entirely, and unboxing
 				// a null Boolean into the primitive parameter would throw during startup replay.
+				// A "visibility" attribute on a legacy row is ignored: with one core there is no core to
+				// pick. It was never written by this class in the first place, so reading it always
+				// yielded null — which then reached a delete that dereferenced it.
 				return new SolrTaskDeleteNetwork(UUID.fromString(t.getResource()),
-						!Boolean.FALSE.equals(t.getAttribute(SolrTaskDeleteNetwork.globalIdxAttr)),
-						visibilityFromAttribute(t.getAttribute("visibility")));
+						!Boolean.FALSE.equals(t.getAttribute(SolrTaskDeleteNetwork.globalIdxAttr)));
 			case SYS_SOLR_REBUILD_NETWORK_INDEX:
 				return new SolrTaskRebuildNetworkIdx(UUID.fromString(t.getResource()), SolrIndexScope.valueOf((String)t.getAttribute(SolrTaskRebuildNetworkIdx.AttrScope)), 
 						  ((Boolean)t.getAttribute(SolrTaskRebuildNetworkIdx.AttrCreateOnly)).booleanValue(),
@@ -80,21 +82,4 @@ public abstract class NdexSystemTask  {
 		}
 	}
 
-	/**
-	 * Reads a persisted visibility attribute, tolerating absent and unrecognised values.
-	 *
-	 * <p>Reconstruction runs during the startup queue replay, so a row carrying an unexpected value
-	 * must not throw - the pre-attribute behaviour was a null visibility, and that is what an
-	 * unusable value falls back to.
-	 */
-	static VisibilityType visibilityFromAttribute(Object attribute) {
-		if (attribute == null) {
-			return null;
-		}
-		try {
-			return VisibilityType.valueOf(attribute.toString());
-		} catch (IllegalArgumentException e) {
-			return null;
-		}
-	}
 }

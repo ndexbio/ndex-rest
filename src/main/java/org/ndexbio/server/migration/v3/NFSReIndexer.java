@@ -86,7 +86,7 @@ public class NFSReIndexer implements Runnable,AutoCloseable {
              NetworkDAO networkDAO = daoFactory.getNetworkDAO()) {
 
             V3Migrator.DaoSet dao = new V3Migrator.DaoSet(userDAO, folderDAO, shortcutDAO, networkDAO);
-            resetIndexes(); //should clear public-nfs and private-nfs indexes
+            resetIndexes(); // clears ndex-nfs
             reIndexFolders(dao); // should pull all folders from db and index
             reIndexShortcuts(dao); // should pull all shortcuts from db and index.
             reIndexNetworks(dao); // already implemented
@@ -103,16 +103,14 @@ public class NFSReIndexer implements Runnable,AutoCloseable {
         logger.info("Resetting NFS Solr indexes...");
         // Each getSolrClient call builds a new client owning non-daemon Jetty threads, so these
         // must be closed or a CLI run never exits after main() returns.
+        // Only ndex-nfs is cleared. Any public-nfs/private-nfs left over from before the core merge is
+        // deliberately left intact: it is the rollback artifact for this release.
         try (FolderIndexManager fim = solrObjectFactory.getFolderIndexManager();
-             SolrClient publicClient = solrObjectFactory.getSolrClient(NFSIndexManager.publicCoreName);
-             SolrClient privateClient = solrObjectFactory.getSolrClient(NFSIndexManager.privateCoreName)) {
+             SolrClient nfsClient = solrObjectFactory.getSolrClient(NFSIndexManager.nfsCoreName)) {
             fim.createCoreIfNeeded();
 
-            publicClient.deleteByQuery("*:*");
-            publicClient.commit();
-
-            privateClient.deleteByQuery("*:*");
-            privateClient.commit();
+            nfsClient.deleteByQuery("*:*");
+            nfsClient.commit();
         }
         logger.info("NFS Solr indexes reset.");
     }
@@ -308,7 +306,7 @@ public class NFSReIndexer implements Runnable,AutoCloseable {
             try {
                 // drop the old ones.
                 if (!createOnly) {
-                    globalNetworkIndexManager.delete(id, visibilityType);
+                    globalNetworkIndexManager.delete(id);
 
                     if ( idxScope == SolrIndexScope.both)
                         try (SingleNetworkSolrIdxManager idx2 = solrObjectFactory.getSingleNetworkSolrIdxManager(fileId.toString())) {
@@ -413,7 +411,7 @@ public class NFSReIndexer implements Runnable,AutoCloseable {
                     }
                 }
 
-                globalNetworkIndexManager.commit(visibilityType);
+                globalNetworkIndexManager.commit();
 
 
                 try {
