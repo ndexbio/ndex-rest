@@ -83,15 +83,15 @@ public class TestNFSPermissionFilter {
 		// The positive form matters: the predecessor was "(*:* NOT visibility:UNLISTED)", which was only
 		// ever correct against a core holding nothing but PUBLIC and UNLISTED. Against one core it
 		// matches every PRIVATE document too.
-		assertEquals("(visibility:PUBLIC)", filter(null, Permissions.READ, SearchScope.EMPTY));
-		assertEquals("(visibility:PUBLIC)", filter(null, null, SearchScope.EMPTY));
+		assertEquals("visibility:PUBLIC", filter(null, Permissions.READ, SearchScope.EMPTY));
+		assertEquals("visibility:PUBLIC", filter(null, null, SearchScope.EMPTY));
 	}
 
 	@Test
 	public void anonymousReachesNothingPrivateEvenIfAScopeIsSuppliedByMistake() {
 		String f = filter(null, Permissions.READ,
 				new SearchScope(Set.of(FOLDER_A), Set.of(NETWORK_A), Set.of(SHORTCUT_A)));
-		assertEquals("(visibility:PUBLIC)", f);
+		assertEquals("visibility:PUBLIC", f);
 		assertFalse(f, f.contains("{!terms"));
 	}
 
@@ -103,20 +103,20 @@ public class TestNFSPermissionFilter {
 
 	@Test
 	public void aWriteSearchDropsThePublicArmBecausePublicVisibilityGrantsNoEdit() {
-		assertEquals("(owner:\"bob\")", filter("bob", Permissions.WRITE, SearchScope.EMPTY));
+		assertEquals("owner:\"bob\"", filter("bob", Permissions.WRITE, SearchScope.EMPTY));
 	}
 
 	@Test
 	public void adminIsOwnershipAloneBecauseAFolderGrantNeverConfersIt() {
-		assertEquals("(owner:\"alice\")",
+		assertEquals("owner:\"alice\"",
 				filter("alice", Permissions.ADMIN,
 						new SearchScope(Set.of(FOLDER_A), Set.of(NETWORK_A), Set.of(SHORTCUT_A))));
 	}
 
 	@Test
 	public void aPermissionThatIsNeitherReadWriteNorAdminReachesOnlyPublicDocuments() {
-		assertEquals("(visibility:PUBLIC)", filter("alice", Permissions.MEMBER, SearchScope.EMPTY));
-		assertEquals("(visibility:PUBLIC)", filter("alice", Permissions.GROUPADMIN, SearchScope.EMPTY));
+		assertEquals("visibility:PUBLIC", filter("alice", Permissions.MEMBER, SearchScope.EMPTY));
+		assertEquals("visibility:PUBLIC", filter("alice", Permissions.GROUPADMIN, SearchScope.EMPTY));
 	}
 
 	// ── the two placements a single core makes load-bearing ─────────────────────
@@ -141,7 +141,7 @@ public class TestNFSPermissionFilter {
 		String f = filter("alice", Permissions.READ,
 				new SearchScope(Set.of(FOLDER_A), Set.of(NETWORK_A), Set.of(SHORTCUT_A)));
 
-		int pin = f.indexOf("visibility:PRIVATE AND (");
+		int pin = f.indexOf("(visibility:PRIVATE) AND (");
 		assertTrue("the terms group must be pinned to PRIVATE: " + f, pin >= 0);
 		// Every terms clause has to sit after the pin. Checking the first occurrence is enough: they are
 		// emitted contiguously, so one escaping the pin would be the earliest.
@@ -171,8 +171,8 @@ public class TestNFSPermissionFilter {
 		// point: a network inherits from the folder above it, a folder is granted directly.
 		String f = filter("alice", Permissions.READ, new SearchScope(Set.of(FOLDER_A), Set.of(), Set.of()));
 
-		assertTrue(f, f.contains("(entityType:\"NETWORK\" AND {!terms f=parentUuid v='" + FOLDER_A + "'})"));
-		assertTrue(f, f.contains("(entityType:\"FOLDER\" AND {!terms f=uuid v='" + FOLDER_A + "'})"));
+		assertTrue(f, f.contains("(entityType:\"NETWORK\") AND ({!terms f=parentUuid v='" + FOLDER_A + "'})"));
+		assertTrue(f, f.contains("(entityType:\"FOLDER\") AND ({!terms f=uuid v='" + FOLDER_A + "'})"));
 	}
 
 	@Test
@@ -191,13 +191,13 @@ public class TestNFSPermissionFilter {
 	@Test
 	public void directlyReachableNetworksAreMatchedByTheirOwnId() {
 		String f = filter("alice", Permissions.READ, new SearchScope(Set.of(), Set.of(NETWORK_A), Set.of()));
-		assertTrue(f, f.contains("(entityType:\"NETWORK\" AND {!terms f=uuid v='" + NETWORK_A + "'})"));
+		assertTrue(f, f.contains("(entityType:\"NETWORK\") AND ({!terms f=uuid v='" + NETWORK_A + "'})"));
 	}
 
 	@Test
 	public void readableShortcutsAreMatchedByTheirOwnId() {
 		String f = filter("alice", Permissions.READ, new SearchScope(Set.of(), Set.of(), Set.of(SHORTCUT_A)));
-		assertTrue(f, f.contains("(entityType:\"SHORTCUT\" AND {!terms f=uuid v='" + SHORTCUT_A + "'})"));
+		assertTrue(f, f.contains("(entityType:\"SHORTCUT\") AND ({!terms f=uuid v='" + SHORTCUT_A + "'})"));
 	}
 
 	@Test
@@ -224,12 +224,12 @@ public class TestNFSPermissionFilter {
 	}
 
 	@Test
-	public void theFirstTermsClauseCarriesNoLeadingOperator() {
-		// The group is assembled standalone and then embedded, so a clause separator that was
-		// unconditional would leave "visibility:PRIVATE AND ( OR (entityType:...))".
+	public void noClauseCarriesAStrayOperator() {
+		// Operands are joined rather than appended, so a group can never open on its operator.
 		String f = filter("alice", Permissions.READ, new SearchScope(Set.of(), Set.of(NETWORK_A), Set.of()));
-		assertFalse(f, f.contains("AND ( OR "));
-		assertTrue(f, f.contains("AND ((entityType:"));
+		assertFalse(f, f.contains("( OR "));
+		assertFalse(f, f.contains("( AND "));
+		assertFalse(f, f.contains(" OR )"));
 	}
 
 	// ── the narrowing filter, which is a separate expression ────────────────────

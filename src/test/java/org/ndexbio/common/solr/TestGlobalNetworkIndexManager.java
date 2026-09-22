@@ -1267,7 +1267,7 @@ public class TestGlobalNetworkIndexManager {
         // The payload's double-quotes are backslash-escaped, so the whole value stays
         // inside the owner phrase and cannot inject a bare (*:*) boolean clause.
         assertEquals(
-                "((visibility:PUBLIC)) AND (owner:\"zzz\\\") OR (*:*) OR (owner:\\\"zzz\")"
+                "(visibility:PUBLIC) AND (owner:\"zzz\\\") OR (*:*) OR (owner:\\\"zzz\")"
                         + " AND (visibility:(PUBLIC OR UNLISTED))",
                 fq[0]);
     }
