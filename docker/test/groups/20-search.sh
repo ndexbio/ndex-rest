@@ -309,6 +309,77 @@ echo "${CV_ANON_ORDER}" | grep -q "^${CV_PRIV}$" \
 api_pass "anonymous search drops the PRIVATE network and keeps the two PUBLIC ones in the same order (${CV_A1} < ${CV_A3})"
 
 
+# ── STEP: a permission on a search asks what the caller may change ────────────
+# An anonymous caller holds no permission on anything, so WRITE and ADMIN must come back empty. The
+# public arm of the permission filter is withheld from those searches for everyone, which is what
+# makes this true rather than a side effect of anonymity.
+#
+# The two controls are the point of the step: without them, "empty" also passes when the endpoint is
+# broken outright. The anonymous READ-equivalent search must still find the public probes, and the
+# owner's own WRITE search must still find what they own.
+
+step "A permission on a search asks what the caller may change"
+
+# uuid count in a /v3/search/files body — the response also carries numFound, which is asserted below.
+# The no-match case is the one being measured here, so grep's exit 1 has to stay out of the pipeline:
+# under pipefail it would fail the command substitution and take the script with it.
+cv_hits() { # body -> count
+  local matches
+  matches=$(grep -oE '"uuid":"[^"]*"' <<<"$1" || true)
+  if [[ -z "${matches}" ]]; then echo 0; else grep -c '' <<<"${matches}"; fi
+}
+
+# The probe token alone, so the counts asserted below cannot be moved by an unrelated document that
+# happens to carry "kinase" or "signaling" — the token exists only in the three probe fixtures.
+cv_search() { # auth(or empty) permission(or empty) -> body
+  local auth="$1" perm="$2" payload
+  if [[ -z "${perm}" ]]; then
+    payload="{\"searchString\":\"CrossVisRankProbe\"}"
+  else
+    payload="{\"searchString\":\"CrossVisRankProbe\",\"permission\":\"${perm}\"}"
+  fi
+  if [[ -z "${auth}" ]]; then
+    curl -s -X POST -H 'Content-Type: application/json' -d "${payload}" \
+      "${BASE_URL}/v3/search/files?start=0&size=10"
+  else
+    curl -s -X POST -u "${auth}" -H 'Content-Type: application/json' -d "${payload}" \
+      "${BASE_URL}/v3/search/files?start=0&size=10"
+  fi
+}
+
+# Control: the same query without a permission must find the two public probes, so an empty result
+# below means the permission was applied rather than the query failing to match.
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: POST /v3/search/files (anonymous, no permission) — control"
+CV_CTL=$(cv_search "" "")
+CV_CTL_N=$(grep -oE '"numFound":[0-9]+' <<<"${CV_CTL}" | grep -oE '[0-9]+$' || echo unset)
+[[ "${CV_CTL_N}" == "2" ]] \
+  || api_fail "anonymous control search should find the 2 public probes, got numFound=${CV_CTL_N}. Body: ${CV_CTL:0:400}"
+api_pass "anonymous search with no permission finds the 2 public probes (control)"
+
+for CV_PERM in WRITE ADMIN; do
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: POST /v3/search/files (anonymous, permission=${CV_PERM})"
+  CV_BODY=$(cv_search "" "${CV_PERM}")
+  CV_N=$(grep -oE '"numFound":[0-9]+' <<<"${CV_BODY}" | grep -oE '[0-9]+$' || echo unset)
+  CV_UUIDS_SEEN=$(cv_hits "${CV_BODY}")
+  [[ "${CV_N}" == "0" && "${CV_UUIDS_SEEN}" == "0" ]] \
+    || api_fail "anonymous permission=${CV_PERM} search must return nothing, got numFound=${CV_N} with ${CV_UUIDS_SEEN} file(s). Body: ${CV_BODY:0:400}"
+  api_pass "anonymous permission=${CV_PERM} search returns an empty result set"
+done
+
+# Control: the same permission, with credentials, still finds what the caller owns — so the empty
+# results above are the caller's lack of permission rather than a permission filter that drops
+# everything it touches.
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: POST /v3/search/files (authenticated owner, permission=WRITE) — control"
+CV_OWN=$(cv_search "${TEST_USER}:${TEST_PASS}" WRITE)
+CV_OWN_N=$(grep -oE '"numFound":[0-9]+' <<<"${CV_OWN}" | grep -oE '[0-9]+$' || echo unset)
+[[ "${CV_OWN_N}" == "3" ]] \
+  || api_fail "the owner's permission=WRITE search should find all 3 probes they own, got numFound=${CV_OWN_N}. Body: ${CV_OWN:0:400}"
+api_pass "the owner's permission=WRITE search still finds the 3 probes they own (control)"
+
+
 # ── STEP: Neighborhood query — SSL context fix (local container only) ─────────
 
 if [[ -z "${REMOTE_NDEX_URL}" ]]; then

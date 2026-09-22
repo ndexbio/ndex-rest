@@ -42,11 +42,13 @@ OWNER="mig-owner"; OWNER_PW="MigOwner1!"
 GRANTEE="mig-grantee"; GRANTEE_PW="MigGrantee1!"
 
 SKIP_BUILD=false
+usage() { echo "Usage: $0 [--skip-build] [--base <version>]" >&2; exit 2; }
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --skip-build) SKIP_BUILD=true; shift ;;
-    --base)       BASE_VERSION="$2"; BASE_IMAGE="ndexbio/ndex-rest:${BASE_VERSION}"; shift 2 ;;
-    *)            echo "Usage: $0 [--skip-build] [--base <version>]" >&2; exit 2 ;;
+    --base)       [[ $# -ge 2 && -n "$2" ]] || usage
+                  BASE_VERSION="$2"; BASE_IMAGE="ndexbio/ndex-rest:${BASE_VERSION}"; shift 2 ;;
+    *)            usage ;;
   esac
 done
 

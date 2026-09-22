@@ -479,7 +479,11 @@ if [[ "${ENABLE_SOLR}" == "true" ]]; then
       cp -r "/opt/ndex-install/solr-configsets/${cs}" /apps/solr/data/configsets/
     fi
   done
-  # ndex-nodes-template = copy of ndex-nodes (template for per-network node indices)
+  # ndex-nodes-template = copy of ndex-nodes (template for per-network node indices).
+  # Removed first: this runs on every start, and copying onto an existing directory of a different
+  # name nests the source inside it rather than replacing it, leaving the template at its old
+  # contents after an image upgrade.
+  rm -rf /apps/solr/data/configsets/ndex-nodes-template
   cp -r /apps/solr/data/configsets/ndex-nodes /apps/solr/data/configsets/ndex-nodes-template
   chown -R solr:solr /apps/solr/data/configsets
 

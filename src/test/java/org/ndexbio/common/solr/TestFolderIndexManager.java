@@ -496,8 +496,14 @@ public class TestFolderIndexManager {
                 "*:*", null, VisibilityType.PRIVATE, 10, 0, null, null, SearchScope.EMPTY);
 
         String[] fq = queryCapture.getValue().getFilterQueries();
-        assertTrue("Anonymous private filter should match nothing",
+        // Both clauses are required, and the emptiness is what they produce together: the permission
+        // arm admits public documents, the partition narrows to PRIVATE, and nothing is both. Asserting
+        // only the permission arm would still pass with the partition clause gone, at which point this
+        // request would return every public document.
+        assertTrue("Anonymous private filter should carry the public permission arm",
                 fq[0].contains("(visibility:PUBLIC)"));
+        assertTrue("Anonymous private filter should narrow to the PRIVATE partition",
+                fq[0].contains("(visibility:PRIVATE)"));
     }
 
     @Test

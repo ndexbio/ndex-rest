@@ -37,6 +37,9 @@ import org.ndexbio.rest.Configuration;
  */
 public class TestNFSPermissionFilter {
 
+	/** What an empty set of reasons renders as: a clause no document can satisfy. */
+	private static final String MATCHES_NOTHING = "(*:* AND NOT *:*)";
+
 	private static final UUID FOLDER_A = UUID.fromString("11111111-1111-1111-1111-111111111111");
 	private static final UUID FOLDER_B = UUID.fromString("22222222-2222-2222-2222-222222222222");
 	private static final UUID NETWORK_A = UUID.fromString("33333333-3333-3333-3333-333333333333");
@@ -104,6 +107,22 @@ public class TestNFSPermissionFilter {
 	@Test
 	public void aWriteSearchDropsThePublicArmBecausePublicVisibilityGrantsNoEdit() {
 		assertEquals("owner:\"bob\"", filter("bob", Permissions.WRITE, SearchScope.EMPTY));
+	}
+
+	@Test
+	public void anAnonymousWriteOrAdminSearchReachesNothing() {
+		// A permission asks what the caller may change. An anonymous caller may change nothing, so every
+		// arm declines and the filter has to match no document. Returning the public arm here would
+		// answer a question about write access with the whole public corpus.
+		assertEquals(MATCHES_NOTHING, filter(null, Permissions.WRITE, SearchScope.EMPTY));
+		assertEquals(MATCHES_NOTHING, filter(null, Permissions.ADMIN, SearchScope.EMPTY));
+	}
+
+	@Test
+	public void anAnonymousWriteSearchIgnoresAnyScopeHandedToIt() {
+		assertEquals(MATCHES_NOTHING,
+				filter(null, Permissions.WRITE,
+						new SearchScope(Set.of(FOLDER_A), Set.of(NETWORK_A), Set.of(SHORTCUT_A))));
 	}
 
 	@Test

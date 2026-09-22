@@ -293,7 +293,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
      */
     protected String buildPermissionFilter(String userAccount, Permissions permission, SearchScope scope) {
         SolrClause.Builder reasons = new SolrClause.Builder();
-        reasons.add(publicDocumentsAnyoneMaySee(userAccount, permission));
+        reasons.add(publicDocumentsAnyoneMaySee(permission));
         reasons.add(documentsThisCallerOwns(userAccount, permission));
         reasons.add(privateDocumentsGrantedToThisCaller(userAccount, permission, scope));
         return SolrClause.anyOf(reasons.clauses()).toString();
@@ -306,11 +306,13 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
      * every private document, since one core now holds them all.</p>
      *
      * <p>Withheld from a WRITE or ADMIN search: those ask what the caller may change, and public
-     * visibility grants no one the right to change anything.</p>
+     * visibility grants no one the right to change anything. That holds for an anonymous caller most of
+     * all — holding no permission on anything, the honest answer to what they may change is nothing, so
+     * every arm declines and the filter matches no document.</p>
      */
-    private SolrClause publicDocumentsAnyoneMaySee(String userAccount, Permissions permission) {
+    private SolrClause publicDocumentsAnyoneMaySee(Permissions permission) {
         boolean asksWhatMayBeChanged = permission == Permissions.WRITE || permission == Permissions.ADMIN;
-        if (userAccount != null && asksWhatMayBeChanged) {
+        if (asksWhatMayBeChanged) {
             return null;
         }
         return SolrClause.term(VISIBILITY, VisibilityType.PUBLIC);

@@ -27,6 +27,11 @@ ranges, which is the root of [#199](https://github.com/ndexbio/ndex-rest/issues/
   continues to include the caller's own unlisted files, because it narrows on the partition the public
   core held rather than on the literal field value. `UNLISTED` is still rejected with `400`, and an
   anonymous `PRIVATE` request is still rejected with `401`.
+  - **A search asking for `WRITE` or `ADMIN` without credentials now returns nothing.** A permission on
+  a search query asks which files the caller may change, and an anonymous caller may change none, so the
+  answer is an empty result set; it previously returned every public file. **This is not a breaking
+  change** — those files remain readable by anyone, and a search that omits the permission or asks for
+  `READ` still returns them. Authenticated `WRITE` and `ADMIN` searches are unchanged.
   - **`POST /v2/search/network` reports a smaller `numFound`** for authenticated callers. The old value
   summed two cores and double-counted. Pagination also starts behaving: a request for N rows used to be
   able to return up to 2N, because each core was paginated independently.

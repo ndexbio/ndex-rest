@@ -260,14 +260,17 @@ p_expect "no membership rows fabricated for the nested network" "${P_UNM_ROWS}" 
 #
 # Searching by UUID isolates exactly one document (uuid is a query field), so a yes/no here
 # is a permission answer rather than a relevance or pagination artifact.
-p_search() { # auth(or empty) uuid [visibility] -> yes|no
-  local vis="${3:-PRIVATE}" body
+p_search() { # auth(or empty) uuid [visibility, or ANY to omit the parameter] -> yes|no
+  local vis="${3:-PRIVATE}" q body
+  # ANY sends no visibility, which is the request for everything the caller may see. It reaches the
+  # permission filter alone, with no partition clause narrowing the result first.
+  [[ "${vis}" == "ANY" ]] && q="" || q="visibility=${vis}&"
   if [[ -z "$1" ]]; then
     body=$(curl -s -X POST -H 'Content-Type: application/json' -d "{\"searchString\":\"$2\"}" \
-      "${BASE_URL}/v3/search/files?visibility=${vis}&start=0&size=50" || true)
+      "${BASE_URL}/v3/search/files?${q}start=0&size=50" || true)
   else
     body=$(curl -s -X POST -u "$1" -H 'Content-Type: application/json' -d "{\"searchString\":\"$2\"}" \
-      "${BASE_URL}/v3/search/files?visibility=${vis}&start=0&size=50" || true)
+      "${BASE_URL}/v3/search/files?${q}start=0&size=50" || true)
   fi
   if grep -q "$2" <<<"${body}"; then echo yes; else echo no; fi
 }
@@ -361,10 +364,17 @@ curl -s -o /dev/null -X POST -u "${A_AUTH}" -H 'Content-Type: application/json' 
 p_wait_indexed "${A_AUTH}" "${V2_PRIV_UUID}" "UNLISTED network" "PUBLIC"
 p_expect "UNLISTED network IS searchable by its owner" \
   "$(p_search "${A_AUTH}" "${V2_PRIV_UUID}" PUBLIC)" yes
+p_expect "UNLISTED network IS searchable by its owner with visibility omitted" \
+  "$(p_search "${A_AUTH}" "${V2_PRIV_UUID}" ANY)" yes
+# Both are asserted for every class: visibility=PUBLIC narrows to the partition that holds UNLISTED
+# documents, while omitting it narrows nothing at all. Only the permission filter separates a grantee
+# from an unlisted file in either case, and it is the scope clauses' pinning to PRIVATE that does it.
 for PAIR in "write-grantee:${B_AUTH}" "read-grantee:${C_AUTH}" "no-grant:${D_AUTH}" "anonymous:"; do
   CLS="${PAIR%%:*}"; AUTH="${PAIR#*:}"
   p_expect "UNLISTED stays unlisted for ${CLS}, despite the folder grant" \
     "$(p_search "${AUTH}" "${V2_PRIV_UUID}" PUBLIC)" no
+  p_expect "UNLISTED stays unlisted for ${CLS} with visibility omitted" \
+    "$(p_search "${AUTH}" "${V2_PRIV_UUID}" ANY)" no
 done
 # ...and it is still openable by id — unlisted restricts listing, never access.
 p_expect "the WRITE grantee can still OPEN the unlisted network by id" \

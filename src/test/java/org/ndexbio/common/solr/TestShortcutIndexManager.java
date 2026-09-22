@@ -492,7 +492,9 @@ public class TestShortcutIndexManager {
         manager.search("*:*", null, VisibilityType.PRIVATE, 10, 0, null, null, SearchScope.EMPTY);
 
         String[] fq = queryCapture.getValue().getFilterQueries();
+        // The permission arm and the partition are both required: neither alone makes this request empty.
         assertTrue(fq[0].contains("(visibility:PUBLIC)"));
+        assertTrue(fq[0].contains("(visibility:PRIVATE)"));
     }
 
     @Test
