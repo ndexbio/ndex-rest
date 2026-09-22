@@ -3,6 +3,7 @@ package org.ndexbio.rest.services.v3;
 import org.junit.Assert;
 import org.junit.Test;
 import org.ndexbio.model.exceptions.BadRequestException;
+import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.network.query.CXObjectFilter;
 import org.ndexbio.model.object.CXSimplePathQuery;
 import org.ndexbio.model.object.SimpleFileQuery;
@@ -136,6 +137,23 @@ public class TestSearchServiceV3 {
                 vdesc.toLowerCase().contains("authentic") || vdesc.toLowerCase().contains("credential"));
         Assert.assertTrue("visibility doc should note UNLISTED is not a valid search mode",
                 vdesc.contains("UNLISTED"));
+    }
+
+    /**
+     * Omitting visibility is a request for one ranked result set spanning every partition the caller may
+     * see, so it has to pass the guards that reject a visibility rather than be defaulted to one. The
+     * call still fails further on, where the search provider is resolved — that is infrastructure this
+     * test has no business standing up, and it is not a rejection of the request.
+     */
+    @Test
+    public void searchFilesAcceptsAnOmittedVisibility() throws Exception {
+        try {
+            _searchService.searchFiles(new SimpleFileQuery(), null, new PagingParameters());
+        } catch (BadRequestException | UnauthorizedOperationException e) {
+            Assert.fail("an omitted visibility must not be rejected: " + e);
+        } catch (Exception reachedTheSearchProvider) {
+            // expected: the guards let it through
+        }
     }
 
     @Test(expected = BadRequestException.class)

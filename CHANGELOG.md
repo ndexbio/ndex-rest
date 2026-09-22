@@ -19,6 +19,10 @@ ranges, which is the root of [#199](https://github.com/ndexbio/ndex-rest/issues/
   ranked as one result set: public files plus, when authenticated, their own private and unlisted files
   and everything shared with them. It previously returned public files only. **Anonymous callers are
   unaffected** — public files were always the whole of their access.
+  - **Files of different visibilities are now ranked against each other.** One query scores every file
+  the caller may see against one corpus, so a private file of their own can sit between two public ones
+  when that is where its relevance puts it. Merging two responses client-side could only append one list
+  to the other, and the two lists carried scores derived from different corpora.
   - **`visibility=PUBLIC` and `visibility=PRIVATE` return exactly what they returned before.** `PUBLIC`
   continues to include the caller's own unlisted files, because it narrows on the partition the public
   core held rather than on the literal field value. `UNLISTED` is still rejected with `400`, and an
