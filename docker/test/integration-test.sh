@@ -1431,6 +1431,86 @@ F10_KEY_NET=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/count?acces
   || api_fail "access-key view wrong: net=${F10_KEY_NET}, list=${F10_KEY_LIST:0:400}"
 api_pass "anon + access key → /list all children (incl. PRIVATE); /count network=2"
 
+# ── STEP: Pagination on the folder listing (#168) ────────────────────────────
+# /list gained start/size. The contract easiest to break silently is the one asserted first: an
+# unparameterised call must still return everything, because every existing client calls it bare —
+# the ndex3 web app, the MCP browse tool, and most of this script. The rest pins the window itself
+# and the two edge answers that must not become errors.
+#
+# The F10 folder is the fixture at this point: exactly two children, both networks, caller is owner.
+# Entries carry no nested objects in the default format=update view (see the #161 note above), so a
+# count of '},{' separators is a reliable entry count without jq.
+step "Folder listing pagination: start/size (#168)"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: GET .../list (owner, no paging params) — must stay unbounded"
+P168_ALL=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list")
+{ echo "${P168_ALL}" | grep -q "${V3_PUB_UUID}" && echo "${P168_ALL}" | grep -q "${V3_PRIV_UUID}"; } \
+  || api_fail "#168: bare /list must stay unbounded. Body: ${P168_ALL:0:400}"
+api_pass "GET .../list with no paging params → still every child (backward compatible)"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: GET .../list?size=-1 — explicit 'all items'"
+P168_NEG1=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list?size=-1")
+{ echo "${P168_NEG1}" | grep -q "${V3_PUB_UUID}" && echo "${P168_NEG1}" | grep -q "${V3_PRIV_UUID}"; } \
+  || api_fail "#168: size=-1 must return every item. Body: ${P168_NEG1:0:400}"
+api_pass "GET .../list?size=-1 → every item (matches the bare call)"
+
+# Two single-item pages must PARTITION the folder: one child each, and not the same child twice.
+# Without a stable tiebreaker in the ORDER BY this is exactly what breaks, and it breaks silently.
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: GET .../list?start=0&size=1 and ?start=1&size=1 — disjoint pages"
+P168_P1=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list?start=0&size=1")
+P168_P2=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list?start=1&size=1")
+P168_P1_PUB=$(echo "${P168_P1}" | grep -c "${V3_PUB_UUID}" || true)
+P168_P1_PRIV=$(echo "${P168_P1}" | grep -c "${V3_PRIV_UUID}" || true)
+P168_P2_PUB=$(echo "${P168_P2}" | grep -c "${V3_PUB_UUID}" || true)
+P168_P2_PRIV=$(echo "${P168_P2}" | grep -c "${V3_PRIV_UUID}" || true)
+[[ $((P168_P1_PUB + P168_P1_PRIV)) == "1" && $((P168_P2_PUB + P168_P2_PRIV)) == "1" ]] \
+  || api_fail "#168: each size=1 page must hold exactly one child. p1=${P168_P1:0:200} p2=${P168_P2:0:200}"
+[[ $((P168_P1_PUB + P168_P2_PUB)) == "1" && $((P168_P1_PRIV + P168_P2_PRIV)) == "1" ]] \
+  || api_fail "#168: consecutive pages repeated or skipped a child. p1=${P168_P1:0:200} p2=${P168_P2:0:200}"
+api_pass "GET .../list?start&size → consecutive pages partition the folder (no repeat, no gap)"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: GET .../list?start=999 — past the end is an empty array, not an error"
+P168_PAST_RESP=$(curl -s -w "\n%{http_code}" -u "${TEST_USER}:${TEST_PASS}" \
+  "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list?start=999")
+P168_PAST_HTTP=$(echo "${P168_PAST_RESP}" | tail -1); P168_PAST_BODY=$(echo "${P168_PAST_RESP}" | head -1)
+{ [[ "${P168_PAST_HTTP}" == "200" ]] && echo "${P168_PAST_BODY}" | grep -qE '^\[[[:space:]]*\]$'; } \
+  || api_fail "#168: start past the end → HTTP ${P168_PAST_HTTP}, body ${P168_PAST_BODY:0:200} (expected 200 and [])"
+api_pass "GET .../list?start=999 → 200 with an empty array (not 404, not an error)"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: GET .../list?start=-1 — out-of-range offset rejected"
+P168_BAD_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -u "${TEST_USER}:${TEST_PASS}" \
+  "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list?start=-1")
+[[ "${P168_BAD_HTTP}" == "400" ]] || api_fail "#168: start=-1 → HTTP ${P168_BAD_HTTP} (expected 400)"
+api_pass "GET .../list?start=-1 → 400"
+
+# The endpoint has three service branches — home, access-key, and readable — and the window has to be
+# threaded through all of them. The assertions above only exercised the readable one.
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: GET .../folders/home/list?size=1 — home branch honors the window"
+P168_HOME_RESP=$(curl -s -w "\n%{http_code}" -u "${TEST_USER}:${TEST_PASS}" \
+  "${BASE_URL}/v3/files/folders/home/list?size=1")
+P168_HOME_HTTP=$(echo "${P168_HOME_RESP}" | tail -1); P168_HOME_BODY=$(echo "${P168_HOME_RESP}" | head -1)
+# '|| true': under `set -o pipefail` a grep that matches nothing exits 1 and would abort the run.
+P168_HOME_SEPS=$(echo "${P168_HOME_BODY}" | grep -o '},[[:space:]]*{' | wc -l | tr -d ' ' || true)
+{ [[ "${P168_HOME_HTTP}" == "200" ]] && [[ "${P168_HOME_SEPS}" == "0" ]]; } \
+  || api_fail "#168: home/list?size=1 → HTTP ${P168_HOME_HTTP}, ${P168_HOME_SEPS} separators. Body: ${P168_HOME_BODY:0:300}"
+api_pass "GET /v3/files/folders/home/list?size=1 → at most one entry (home branch honors size)"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: GET .../list?accesskey&size=1 (anon) — access-key branch honors the window"
+P168_KEY_PAGE=$(curl -s "${BASE_URL}/v3/files/folders/${F10_FOLDER_ID}/list?accesskey=${F10_KEY}&size=1")
+P168_KEY_SEPS=$(echo "${P168_KEY_PAGE}" | grep -o '},[[:space:]]*{' | wc -l | tr -d ' ' || true)
+[[ "${P168_KEY_SEPS}" == "0" ]] \
+  || api_fail "#168: key-filtered /list?size=1 returned ${P168_KEY_SEPS} separators. Body: ${P168_KEY_PAGE:0:300}"
+{ echo "${P168_KEY_PAGE}" | grep -q "${V3_PUB_UUID}" || echo "${P168_KEY_PAGE}" | grep -q "${V3_PRIV_UUID}"; } \
+  || api_fail "#168: key-filtered /list?size=1 returned no child. Body: ${P168_KEY_PAGE:0:300}"
+api_pass "GET .../list?accesskey&size=1 → exactly one child (access-key branch honors size)"
+
 # ── STEP: Access key follows the folder hierarchy + same-owner shortcut resolution (G11, #133/#137) ──
 # A network is reachable by an ANCESTOR folder's access key (accrual up the folder chain), AND — for
 # backwards compatibility with the v3 networkset migration — by a SAME-OWNER NETWORK shortcut that lives
@@ -1587,12 +1667,27 @@ echo "${VIS_F_GET}" | grep -qE '"visibility"[[:space:]]*:[[:space:]]*"PUBLIC"' \
   || api_fail "GET folder did not report visibility=PUBLIC. Body: ${VIS_F_GET:0:300}"
 api_pass "GET folder reports visibility=PUBLIC"
 
+# GET /v3/files/folders was removed by #163; the folder listing replaces it. format=compact is the
+# view that carries visibility, description and creationTime -- despite the name it is the FULLER of
+# the two, so do not "fix" this back to the default format=update.
 CALL_NUM=$((CALL_NUM+1))
-echo "  API call ${CALL_NUM}: GET /v3/files/folders/ (list-mine reports visibility)"
-VIS_F_LIST=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/")
+echo "  API call ${CALL_NUM}: GET /v3/files/folders/home/list?type=folder&format=compact (listing reports visibility)"
+VIS_F_LIST=$(curl -s -u "${TEST_USER}:${TEST_PASS}" \
+  "${BASE_URL}/v3/files/folders/home/list?type=folder&format=compact")
+echo "${VIS_F_LIST}" | grep -q "${VIS_F_ID}" \
+  || api_fail "home folder listing omitted the folder just created (${VIS_F_ID}). Body: ${VIS_F_LIST:0:400}"
 echo "${VIS_F_LIST}" | grep -q '"visibility"' \
-  || api_fail "list-mine folders did not report a visibility field. Body: ${VIS_F_LIST:0:400}"
-api_pass "GET list-mine folders reports visibility"
+  || api_fail "folder listing did not report a visibility field. Body: ${VIS_F_LIST:0:400}"
+api_pass "GET /v3/files/folders/home/list reports visibility"
+
+# creationTime rides in attributes because FileItemSummary has no such field (#163). This assertion is
+# the contract the ndex-java-client maps against; if it breaks, that client silently loses the field.
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: GET /v3/files/folders/home/list (compact carries attributes.creationTime)"
+echo "${VIS_F_LIST}" | grep -q '"creationTime"' \
+  || api_fail "compact folder listing did not carry attributes.creationTime. Body: ${VIS_F_LIST:0:400}"
+api_pass "compact folder listing carries creationTime in attributes"
+
 
 # --- Folder: omitted visibility defaults to PRIVATE ---
 CALL_NUM=$((CALL_NUM+1))
@@ -1655,6 +1750,72 @@ VIS_S_GET2=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/shortc
 echo "${VIS_S_GET2}" | grep -qE '"visibility"[[:space:]]*:[[:space:]]*"PRIVATE"' \
   || api_fail "shortcut update did not change visibility to PRIVATE. Body: ${VIS_S_GET2:0:300}"
 api_pass "PUT shortcut visibility=PRIVATE applied; GET reports PRIVATE"
+
+# ── /list type filter: shortcut is a first-class type (#163) ─────────────────────────────────────────
+# Fixtures: VIS_F_ID is a folder at home root; VIS_S_ID is a shortcut at home root POINTING AT it.
+# A shortcut counts as a way of seeing whatever it points at, so:
+#   type=folder   -> the folder AND the shortcut pointing at it
+#   type=shortcut -> the shortcut only (this used to return an empty array)
+#   type=network  -> neither, since nothing here is or points at a network
+step "Folder listing type filter: folder / shortcut / network (#163)"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: GET /v3/files/folders/home/list?type=shortcut — must return the shortcut"
+T_SC=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/home/list?type=shortcut")
+echo "${T_SC}" | grep -q "${VIS_S_ID}" \
+  || api_fail "type=shortcut omitted shortcut ${VIS_S_ID}; the filter is still matching on target_type. Body: ${T_SC:0:400}"
+echo "${T_SC}" | grep -q "${VIS_F_ID}" \
+  && api_fail "type=shortcut must not return the folder ${VIS_F_ID}. Body: ${T_SC:0:400}"
+api_pass "type=shortcut returns shortcuts and nothing else"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: GET /v3/files/folders/home/list?type=folder — folder AND the shortcut to it"
+T_FD=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/home/list?type=folder")
+echo "${T_FD}" | grep -q "${VIS_F_ID}" \
+  || api_fail "type=folder omitted folder ${VIS_F_ID}. Body: ${T_FD:0:400}"
+echo "${T_FD}" | grep -q "${VIS_S_ID}" \
+  || api_fail "type=folder must also return the folder-targeted shortcut ${VIS_S_ID}. Body: ${T_FD:0:400}"
+api_pass "type=folder returns folders plus shortcuts pointing at folders"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: GET /v3/files/folders/home/list?type=network — neither fixture"
+T_NW=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/files/folders/home/list?type=network")
+echo "${T_NW}" | grep -q "${VIS_F_ID}" \
+  && api_fail "type=network must not return the folder ${VIS_F_ID}. Body: ${T_NW:0:400}"
+echo "${T_NW}" | grep -q "${VIS_S_ID}" \
+  && api_fail "type=network must not return a folder-targeted shortcut ${VIS_S_ID}. Body: ${T_NW:0:400}"
+api_pass "type=network excludes folders and folder-targeted shortcuts"
+
+# ── Removed endpoints leave no trace in the generated OpenAPI spec (#163) ────────────────────────────
+# The spec is generated at runtime from the @Operation annotations, so the deleted GET handlers can
+# only vanish from it if their annotations are truly gone. The summaries below were unique to them.
+# The sibling POST creates share the same paths and must survive, which is what proves this assertion
+# is testing the operations rather than the paths.
+step "Removed list-mine endpoints are absent from OpenAPI (#163)"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: GET /openapi.json — removed GET operations must be gone"
+OPENAPI_BODY=$(curl -s "${BASE_URL}/openapi.json")
+[[ -n "${OPENAPI_BODY}" ]] || api_fail "GET /openapi.json returned an empty body"
+
+# Substring tests rather than `echo | grep -q`: the spec body is large, and grep -q exits on its first
+# match, which SIGPIPEs the echo still writing into it. Under `set -o pipefail` that turns a successful
+# match into a failed pipeline. Keep these as pure-bash tests.
+[[ "${OPENAPI_BODY}" == *"List My Folders"* ]] \
+  && api_fail "GET /v3/files/folders is still documented in OpenAPI (summary 'List My Folders')"
+[[ "${OPENAPI_BODY}" == *"List my Shortcuts"* ]] \
+  && api_fail "GET /v3/files/shortcuts is still documented in OpenAPI (summary 'List my Shortcuts')"
+api_pass "neither removed list-mine operation appears in the OpenAPI spec"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: GET /openapi.json — sibling POST creates on the same paths survive"
+[[ "${OPENAPI_BODY}" == *"Create a Folder"* ]] \
+  || api_fail "POST /v3/files/folders vanished from OpenAPI; the removal took the whole path with it"
+[[ "${OPENAPI_BODY}" == *"Create a Shortcut"* ]] \
+  || api_fail "POST /v3/files/shortcuts vanished from OpenAPI; the removal took the whole path with it"
+[[ "${OPENAPI_BODY}" == *"List items in a folder"* ]] \
+  || api_fail "the replacement listing operation is missing from OpenAPI"
+api_pass "POST creates and the replacement listing operation are still documented"
 
 # ── STEP: Visibility change fully reindexes in Solr (drop from old core, add to new) ──
 # Proves the reviewer's concern on PR #129: a PRIVATE→PUBLIC update moves the entry between
@@ -2388,6 +2549,44 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   [[ "${NS_SET_COUNT}" == "${NS_LIST_LEN}" ]] \
     || api_fail "networkSetCount (${NS_SET_COUNT}) must equal the networksets list length (${NS_LIST_LEN})"
   api_pass "networkSetCount (${NS_SET_COUNT}) equals the unpaged /networksets length"
+
+  # ── 7b) Only home-root folders are network sets (issue #164) ───────────────────────────────────
+  # A network set is always created at the owner's home root, so a folder nested inside another
+  # folder is not a set: it must be absent from /v2/user/{id}/networksets and from networkSetCount.
+  # The any-depth listing is deliberately NOT scoped this way. GET /v3/files/folders was removed by
+  # #163, so that guarantee is now asserted in integration-mcp-test.sh via get_folder mode=list;
+  # /v3/files/folders/home/list is home-root only and cannot stand in for it here.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: POST /v3/files/folders/ — sub-folder nested under set ${NS_ID}"
+  NS_SUB_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+    -H "Content-Type: application/json" \
+    -d "{\"name\":\"NS sub-folder\",\"parent\":\"${NS_ID}\"}" \
+    "${BASE_URL}/v3/files/folders/")
+  NS_SUB_HTTP=$(echo "${NS_SUB_RESP}" | tail -1); NS_SUB_BODY=$(echo "${NS_SUB_RESP}" | head -1)
+  [[ "${NS_SUB_HTTP}" == "201" ]] \
+    || api_fail "create nested sub-folder → HTTP ${NS_SUB_HTTP} (expected 201). Body: ${NS_SUB_BODY:0:300}"
+  NS_SUB_ID=$(echo "${NS_SUB_BODY}" | grep -oiE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1 || true)
+  [[ -n "${NS_SUB_ID}" ]] || api_fail "no uuid in sub-folder create response. Body: ${NS_SUB_BODY:0:300}"
+  api_pass "sub-folder ${NS_SUB_ID} created under root set ${NS_ID}"
+
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: GET /v2/user/${NS_OWNER_ID}/networksets — nested folder must NOT be listed"
+  NSU_NESTED=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/user/${NS_OWNER_ID}/networksets?summary=true")
+  echo "${NSU_NESTED}" | grep -q "${NS_ID}" \
+    || api_fail "root set ${NS_ID} disappeared from the list. Body: ${NSU_NESTED:0:500}"
+  echo "${NSU_NESTED}" | grep -q "${NS_SUB_ID}" \
+    && api_fail "nested folder ${NS_SUB_ID} must not be listed as a network set. Body: ${NSU_NESTED:0:500}"
+  api_pass "GET /v2/user/{id}/networksets lists the root set and omits the nested folder (issue #164)"
+
+  # The count is scoped the same way, or the account page contradicts the list it describes.
+  CALL_NUM=$((CALL_NUM+1))
+  echo "  API call ${CALL_NUM}: GET /v2/user/${NS_OWNER_ID}/networkcount — count still matches the list"
+  NS_SET_COUNT2=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/user/${NS_OWNER_ID}/networkcount" \
+    | grep -oE '"networkSetCount"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$' || true)
+  NS_LIST_LEN2=$(echo "${NSU_NESTED}" | grep -oE '"externalId"' | wc -l | tr -d '[:space:]')
+  [[ "${NS_SET_COUNT2}" == "${NS_LIST_LEN2}" ]] \
+    || api_fail "with a nested folder present: networkSetCount (${NS_SET_COUNT2}) != list length (${NS_LIST_LEN2})"
+  api_pass "networkSetCount (${NS_SET_COUNT2}) still equals the /networksets length with a nested folder present"
 
   # ── 8) PUT /{id}/systemproperty → showcase is a documented no-op ────────────────────────────────
   NS_BEFORE=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/networkset/${NS_ID}")

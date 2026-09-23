@@ -80,6 +80,24 @@ Folder-item limit: Each folder has a limit of `100,000` items. Folders, Networks
 
 Folder-depth limit: A folder can’t contain more than `20` levels of nested folders.
 
+### Listing a folder's contents:
+
+`GET /v3/files/folders/{folderid}/list` takes `start` (zero-based row offset, default `0`) and `size`
+(page size). Because a folder-item limit of 100,000 is far more than any client wants in one response,
+these let a caller walk a large folder a page at a time.
+
+* **The default is unbounded.** Omitting `size` returns every item, so a call written before pagination
+existed behaves exactly as it did. Pass `-1`, or any non-positive value, to ask for all items
+explicitly.
+* Items are ordered by last modification time descending, nulls last, tie-broken by UUID. That order is
+total and stable, so concatenating consecutive pages reproduces one unbounded listing — without the
+tiebreaker, rows sharing a modification time could repeat or vanish between pages.
+* A `start` past the last item is an empty array with `200`, not an error. A negative `start` is `400`.
+* The response is a bare array and carries no total. `GET /v3/files/folders/{folderid}/count` gives the
+counts under the same visibility rules. The two are not directly comparable under a `type` filter,
+since `/list?type=network` also returns network-targeted shortcuts while `FileCount.network` does not
+count them.
+
 ### Sharing:
 
 * Only the owner can share their folders.   
@@ -310,6 +328,15 @@ In the API, we will add a new **files** endpoint in NDEx to handle folders and s
 
 * List objects in a folder `GET /v3/files/folders/<uuid>/list?format=<update|compact>`
 
+  Accepts the literal `home` in place of a uuid for the caller's top level, and `start`/`size`
+  for paging. Despite the names, `compact` is the **fuller** view — it adds description,
+  visibility, folder creationTime and network edgecount — while `update` (the default) omits them.
+
+  `type` is `folder`, `network` or `shortcut`; omit it for everything. A shortcut is a pointer at a
+  folder or a network, so it counts as a way of seeing whatever it points at: `folder` returns folders
+  plus shortcuts pointing at folders, `network` returns networks plus shortcuts pointing at networks,
+  and `shortcut` returns shortcuts only.
+
   Response:
 
   ```  
@@ -422,25 +449,13 @@ In the API, we will add a new **files** endpoint in NDEx to handle folders and s
   ]
   ```  
     
-* List all my folders `GET /v3/files/folders?limit=100`
-  
-Response:  
+*Removed in 3.0.7 (issue #163): `GET /v3/files/folders` and `GET /v3/files/shortcuts`.* Both listed
+everything the caller owned at any depth with a `limit` but no pagination. Use the folder listing
+above instead, starting at the `home` literal and recursing per folder for depth:
 
-```
-[  
-  folder_obj  
-]
-```
-
-* List all my shortcuts `GET /v3/files/shortcuts?limit=100`
-  
-Response:
-
-```
-[  
-    shortcut_obj  
-]
-```
+* Your folders: `GET /v3/files/folders/home/list?type=folder`, keeping items whose `type` is `folder`
+  — folder-targeted shortcuts are returned alongside them.
+* Your shortcuts: `GET /v3/files/folders/home/list?type=shortcut`.
 
 ## New and updated API functions for network 
 

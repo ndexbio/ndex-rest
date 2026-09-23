@@ -10,16 +10,19 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
 import org.easymock.Capture;
+import org.easymock.CaptureType;
 import org.junit.Test;
 import org.ndexbio.common.models.dao.AccessKeyResolver;
 import org.ndexbio.common.models.dao.DeletedFileIds;
 import org.ndexbio.model.object.FileCount;
+import org.ndexbio.model.object.FileItemSummary;
 import org.ndexbio.common.models.dao.FilePermissionResolver;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.FileType;
@@ -148,6 +151,132 @@ public class TestPostgresFolderDAO {
 
         verify(conn, pst, rs, resolver);
         return sql.getValue();
+    }
+
+    /**
+     * The all-folders scope must keep emitting exactly the statement it always has. The predicate is
+     * assembled from fragments, so a stray space would change the SQL text with nothing else to catch it.
+     */
+    @Test
+    public void listFoldersOfUserIncludesNestedFoldersByDefault() throws SQLException {
+        UUID ownerId = UUID.randomUUID();
+
+        Connection conn = createMock(Connection.class);
+        PreparedStatement stmt = createMock(PreparedStatement.class);
+        ResultSet rs = createMock(ResultSet.class);
+
+        expect(conn.prepareStatement("SELECT \"UUID\", name, parent, creation_time, modification_time, is_deleted, description, visibility "
+                + " FROM folder "
+                + " WHERE owneruuid=? AND is_deleted=false "
+                + " ORDER BY name "
+                + " LIMIT ?")).andReturn(stmt);
+        stmt.setObject(1, ownerId);
+        expectLastCall();
+        stmt.setInt(2, 25);
+        expectLastCall();
+        expect(stmt.executeQuery()).andReturn(rs);
+        expect(rs.next()).andReturn(false);
+        rs.close();
+        expectLastCall();
+        stmt.close();
+        expectLastCall();
+
+        replay(conn, stmt, rs);
+
+        // The 2-arg form is what the MCP get_folder list mode calls -- its sole caller since issue #163
+        // removed GET /v3/files/folders. It must stay on the all-folders scope.
+        assertTrue(new PostgresFolderDAO(conn).listFoldersOfUser(ownerId, 25).isEmpty());
+
+        verify(conn, stmt, rs);
+    }
+
+    // ── compact folder listings carry creationTime in attributes (issue #163) ──
+    //
+    // The removed GET /v3/files/folders returned creation_time on every folder. FileItemSummary has no
+    // creationTime field in any released ndex-object-model, so the folder listing that replaces that
+    // endpoint carries it inside the existing attributes map. Only the compact view selects it.
+
+    @Test
+    public void compactFolderListingPutsCreationTimeInAttributes() throws SQLException {
+        UUID ownerId = UUID.randomUUID();
+        Timestamp created = Timestamp.valueOf("2026-01-02 03:04:05");
+
+        Connection conn = createMock(Connection.class);
+        PreparedStatement pst = createMock(PreparedStatement.class);
+        ResultSet rs = createMock(ResultSet.class);
+
+        Capture<String> sql = Capture.newInstance(CaptureType.ALL);
+        expect(conn.prepareStatement(capture(sql))).andReturn(pst).anyTimes();
+        pst.setObject(anyInt(), anyObject());
+        expectLastCall().anyTimes();
+        pst.setString(anyInt(), anyString());   // the shortcut arm binds target_type
+        expectLastCall().anyTimes();
+        pst.setInt(anyInt(), anyInt());
+        expectLastCall().anyTimes();
+        expect(pst.executeQuery()).andReturn(rs).anyTimes();
+
+        // One folder row, then nothing for the network and shortcut arms.
+        expect(rs.next()).andReturn(true).once();
+        expect(rs.getObject("UUID")).andReturn(FOLDER).anyTimes();
+        expect(rs.getString("name")).andReturn("Wnt").anyTimes();
+        expect(rs.getTimestamp("modification_time")).andReturn(created).anyTimes();
+        expect(rs.getString("updated_by")).andReturn("me").anyTimes();
+        expect(rs.getString("description")).andReturn("a folder").anyTimes();
+        expect(rs.getString("visibility")).andReturn("PUBLIC").anyTimes();
+        expect(rs.getTimestamp("creation_time")).andReturn(created).anyTimes();
+        expect(rs.getObject("owner_id")).andReturn(ownerId).anyTimes();
+        expect(rs.getString("owner_name")).andReturn("me").anyTimes();
+        expect(rs.getBoolean("is_shared")).andReturn(false).anyTimes();
+        expect(rs.next()).andReturn(false).anyTimes();
+        rs.close();
+        expectLastCall().anyTimes();
+        pst.close();
+        expectLastCall().anyTimes();
+
+        replay(conn, pst, rs);
+
+        List<FileItemSummary> items = new PostgresFolderDAO(conn)
+                .listRootItemsOfUser(ownerId, true, FileType.FOLDER, 0, -1);
+
+        assertEquals(1, items.size());
+        assertTrue("the compact folder SELECT must ask for creation_time",
+                sql.getValues().stream().anyMatch(q -> q.contains("f.creation_time")));
+        assertEquals("creationTime must ride in attributes",
+                created, items.get(0).getAttributes().get("creationTime"));
+        assertEquals("a folder", items.get(0).getAttributes().get("description"));
+    }
+
+    @Test
+    public void listFoldersOfUserRestrictsToHomeRootWhenNestedExcluded() throws SQLException {
+        UUID ownerId = UUID.randomUUID();
+
+        Connection conn = createMock(Connection.class);
+        PreparedStatement stmt = createMock(PreparedStatement.class);
+        ResultSet rs = createMock(ResultSet.class);
+
+        // parent IS NULL is the same home-root definition getRootChildCountsOfUser counts with, so
+        // /v2/user/{id}/networksets and its networkSetCount cannot disagree.
+        expect(conn.prepareStatement("SELECT \"UUID\", name, parent, creation_time, modification_time, is_deleted, description, visibility "
+                + " FROM folder "
+                + " WHERE owneruuid=? AND parent IS NULL AND is_deleted=false "
+                + " ORDER BY name "
+                + " LIMIT ?")).andReturn(stmt);
+        stmt.setObject(1, ownerId);
+        expectLastCall();
+        stmt.setInt(2, 25);
+        expectLastCall();
+        expect(stmt.executeQuery()).andReturn(rs);
+        expect(rs.next()).andReturn(false);
+        rs.close();
+        expectLastCall();
+        stmt.close();
+        expectLastCall();
+
+        replay(conn, stmt, rs);
+
+        assertTrue(new PostgresFolderDAO(conn).listFoldersOfUser(ownerId, 25, false).isEmpty());
+
+        verify(conn, stmt, rs);
     }
 
     @Test
@@ -376,6 +505,221 @@ public class TestPostgresFolderDAO {
         assertTrue("network listing must keep selecting ndexdoi — isCertified is meaningless without it",
                 networkSql.contains("ndexdoi"));
         verify(resolver);
+    }
+
+    // ── paging: the page is chosen in the database, not after the fact ───────
+    //
+    // The point of paging this listing is not payload size, it is that the detail queries evaluate a
+    // correlated WITH RECURSIVE is_shared per row. A page therefore has to be selected by a query that
+    // does none of that, or "pagination" just moves the same cost behind a subList.
+
+    /** Stubs the three read predicates readClausesFor always builds, whatever the type filter is. */
+    private static void expectReadClauses(FilePermissionResolver resolver, Set<UUID> granted) throws SQLException {
+        expect(resolver.grantedFolderIds(USER, Permissions.READ)).andReturn(granted);
+        expect(resolver.readableConditionSql(FileType.FOLDER, "f", USER, granted)).andReturn("F_READABLE");
+        expect(resolver.readableConditionSql(FileType.NETWORK, "n", USER, granted)).andReturn("N_READABLE");
+        expect(resolver.readableConditionSql(FileType.SHORTCUT, "s", USER, granted)).andReturn("S_READABLE");
+    }
+
+    /** A statement whose result set yields nothing. */
+    private static PreparedStatement emptyStatement() throws SQLException {
+        PreparedStatement pst = createNiceMock(PreparedStatement.class);
+        ResultSet rs = createNiceMock(ResultSet.class);
+        expect(rs.next()).andReturn(false).anyTimes();
+        expect(pst.executeQuery()).andReturn(rs).anyTimes();
+        replay(pst, rs);
+        return pst;
+    }
+
+    @Test
+    public void testPagedListingPicksThePageWithOneCheapOrderedKeyQuery() throws Exception {
+        Connection conn = createMock(Connection.class);
+        FilePermissionResolver resolver = createMock(FilePermissionResolver.class);
+        expectReadClauses(resolver, Collections.singleton(FOLDER));
+
+        Capture<String> sql = newCapture(org.easymock.CaptureType.ALL);
+        expect(conn.prepareStatement(capture(sql))).andReturn(emptyStatement());
+        replay(conn, resolver);
+
+        PostgresFolderDAO dao = new PostgresFolderDAO(conn);
+        dao.setPermissionResolver(resolver);
+        assertTrue(dao.listReadableItemsInFolder(FOLDER, false, null, USER, 40, 20).isEmpty());
+
+        // A start past the last row must not cost a hydration round trip.
+        assertEquals(1, sql.getValues().size());
+        String keySql = sql.getValues().get(0);
+
+        assertTrue("page must be ordered newest first, nulls last",
+                keySql.contains("ORDER BY k.mtime DESC NULLS LAST"));
+        // Without a tiebreaker, LIMIT/OFFSET over rows sharing a modification_time — a bulk import
+        // stamps many rows from one now() — can repeat or skip rows between consecutive pages.
+        assertTrue("the order must be total, not just by time", keySql.contains("k.id"));
+        assertTrue("the window must be applied in the database", keySql.contains("LIMIT ? OFFSET ?"));
+        assertTrue("all three child types compete for the page",
+                keySql.contains("FROM folder f") && keySql.contains("FROM network n")
+                        && keySql.contains("FROM shortcut s"));
+        // The whole reason this query exists: it must not carry the detail projection.
+        assertFalse("key query must not evaluate is_shared for rows outside the page",
+                keySql.contains("RECURSIVE chain"));
+        // The read predicates decide which rows the page is drawn from. On the hydration queries alone
+        // they would come too late — LIMIT would already have counted rows the caller cannot see.
+        assertTrue("key query must filter by what the caller may read",
+                keySql.contains("F_READABLE") && keySql.contains("N_READABLE")
+                        && keySql.contains("S_READABLE"));
+        verify(conn, resolver);
+    }
+
+    /**
+     * `type` names the type of thing the caller wants to see, and a shortcut TO a network is a way of
+     * seeing a network. The detail path has always worked that way; the key query has to agree, or a
+     * paged type=network listing would silently lose every network shortcut.
+     */
+    @Test
+    public void testPagedKeyQueryKeepsTheShortcutArmWhenFilteringByNetwork() throws Exception {
+        Connection conn = createMock(Connection.class);
+        FilePermissionResolver resolver = createMock(FilePermissionResolver.class);
+        expectReadClauses(resolver, Collections.singleton(FOLDER));
+
+        Capture<String> sql = newCapture(org.easymock.CaptureType.ALL);
+        expect(conn.prepareStatement(capture(sql))).andReturn(emptyStatement());
+        replay(conn, resolver);
+
+        PostgresFolderDAO dao = new PostgresFolderDAO(conn);
+        dao.setPermissionResolver(resolver);
+        dao.listReadableItemsInFolder(FOLDER, false, FileType.NETWORK, USER, 0, 10);
+
+        String keySql = sql.getValues().get(0);
+        assertFalse("a network listing has no folder arm", keySql.contains("FROM folder f"));
+        assertTrue(keySql.contains("FROM network n"));
+        assertTrue("network shortcuts are part of a network listing", keySql.contains("FROM shortcut s"));
+        assertTrue("the shortcut arm filters on the shortcut's TARGET type",
+                keySql.contains("s.target_type=?"));
+        verify(conn, resolver);
+    }
+
+    /**
+     * Hydration is per type and only for the types actually on the page, so a folder of nothing but
+     * networks costs one key query plus one detail query rather than four statements.
+     */
+    @Test
+    public void testPagedListingHydratesOnlyTheTypesPresentOnThePage() throws Exception {
+        Connection conn = createMock(Connection.class);
+        FilePermissionResolver resolver = createMock(FilePermissionResolver.class);
+        expectReadClauses(resolver, Collections.singleton(FOLDER));
+
+        // The page is one network.
+        PreparedStatement keyPst = createNiceMock(PreparedStatement.class);
+        ResultSet keyRs = createNiceMock(ResultSet.class);
+        expect(keyRs.next()).andReturn(true);
+        expect(keyRs.getObject("id")).andReturn(NETWORK);
+        expect(keyRs.getString("item_type")).andReturn("NETWORK");
+        expect(keyRs.next()).andReturn(false).anyTimes();
+        expect(keyPst.executeQuery()).andReturn(keyRs).anyTimes();
+        replay(keyPst, keyRs);
+
+        Capture<String> sql = newCapture(org.easymock.CaptureType.ALL);
+        expect(conn.prepareStatement(capture(sql))).andReturn(keyPst);
+        expect(conn.prepareStatement(capture(sql))).andReturn(emptyStatement());
+        expect(conn.createArrayOf(eq("uuid"), anyObject(UUID[].class))).andReturn(null);
+        replay(conn, resolver);
+
+        PostgresFolderDAO dao = new PostgresFolderDAO(conn);
+        dao.setPermissionResolver(resolver);
+        dao.listReadableItemsInFolder(FOLDER, false, null, USER, 0, 10);
+
+        assertEquals("key query plus one hydration, not one per type", 2, sql.getValues().size());
+        String detailSql = sql.getValues().get(1);
+        assertTrue("only networks were on the page", detailSql.contains("FROM network n"));
+        assertTrue("hydration narrows to the page's ids", detailSql.contains("n.\"UUID\" = ANY(?)"));
+        // Keeping the scope predicate rather than replacing it is what stops a row moved out of the
+        // folder between the two statements from reappearing in the page.
+        assertTrue("hydration keeps the folder scope predicate", detailSql.contains("n.parent=?"));
+        assertTrue("hydration still applies the caller's read predicate", detailSql.contains("N_READABLE"));
+        verify(conn, resolver);
+    }
+
+    /**
+     * Unbounded is the default every pre-paging caller takes. It must keep issuing the same statements
+     * it always did — no window, no id filter — so that adding paging cannot have changed what an
+     * unparameterised listing returns.
+     */
+    @Test
+    public void testUnboundedListingStillIssuesThePlainChildQueries() throws Exception {
+        Connection conn = createMock(Connection.class);
+        FilePermissionResolver resolver = createMock(FilePermissionResolver.class);
+        expectReadClauses(resolver, Collections.singleton(FOLDER));
+
+        Capture<String> sql = newCapture(org.easymock.CaptureType.ALL);
+        for (int i = 0; i < 3; i++) {
+            expect(conn.prepareStatement(capture(sql))).andReturn(emptyStatement());
+        }
+        replay(conn, resolver);
+
+        PostgresFolderDAO dao = new PostgresFolderDAO(conn);
+        dao.setPermissionResolver(resolver);
+        dao.listReadableItemsInFolder(FOLDER, false, null, USER, 0, -1);
+
+        assertEquals(3, sql.getValues().size());
+        for (String s : sql.getValues()) {
+            // "LIMIT ? OFFSET ?" specifically: the is_shared EXISTS subqueries carry their own LIMIT 1.
+            assertFalse("unbounded must not window in SQL: " + s, s.contains("LIMIT ? OFFSET ?"));
+            assertFalse("unbounded hydrates nothing by id: " + s, s.contains("= ANY(?)"));
+        }
+        verify(conn, resolver);
+    }
+
+    /**
+     * type=SHORTCUT asks for shortcuts themselves, so it must query only the shortcut table and must
+     * NOT constrain target_type -- nothing points at a shortcut, so constraining it matched zero rows
+     * (issue #163). The folder and network arms stay out of the query.
+     */
+    @Test
+    public void testPagedListingByShortcutTypeQueriesShortcutsWithoutTargetFilter() throws Exception {
+        Connection conn = createMock(Connection.class);
+        FilePermissionResolver resolver = createMock(FilePermissionResolver.class);
+        expectReadClauses(resolver, Collections.singleton(FOLDER));
+
+        Capture<String> sql = newCapture(org.easymock.CaptureType.ALL);
+        expect(conn.prepareStatement(capture(sql))).andReturn(emptyStatement());
+        replay(conn, resolver);
+
+        PostgresFolderDAO dao = new PostgresFolderDAO(conn);
+        dao.setPermissionResolver(resolver);
+        dao.listReadableItemsInFolder(FOLDER, false, FileType.SHORTCUT, USER, 0, 10);
+
+        String keySql = sql.getValues().get(0);
+        assertFalse("folders must not be queried under type=shortcut", keySql.contains("FROM folder f"));
+        assertFalse("networks must not be queried under type=shortcut", keySql.contains("FROM network n"));
+        assertTrue("shortcuts must be queried", keySql.contains("FROM shortcut s"));
+        assertFalse("type=shortcut must not filter on target_type", keySql.contains("s.target_type=?"));
+        verify(conn, resolver);
+    }
+
+    /**
+     * The counterpart to the test above: type=FOLDER and type=NETWORK still filter on target_type, so
+     * they keep returning their own kind plus the shortcuts pointing at it.
+     */
+    @Test
+    public void testPagedListingByFolderOrNetworkTypeStillFiltersOnTargetType() throws Exception {
+        for (FileType type : new FileType[] { FileType.FOLDER, FileType.NETWORK }) {
+            Connection conn = createMock(Connection.class);
+            FilePermissionResolver resolver = createMock(FilePermissionResolver.class);
+            expectReadClauses(resolver, Collections.singleton(FOLDER));
+
+            Capture<String> sql = newCapture(org.easymock.CaptureType.ALL);
+            expect(conn.prepareStatement(capture(sql))).andReturn(emptyStatement());
+            replay(conn, resolver);
+
+            PostgresFolderDAO dao = new PostgresFolderDAO(conn);
+            dao.setPermissionResolver(resolver);
+            dao.listReadableItemsInFolder(FOLDER, false, type, USER, 0, 10);
+
+            String keySql = sql.getValues().get(0);
+            assertTrue("type=" + type + " must still reach shortcuts", keySql.contains("FROM shortcut s"));
+            assertTrue("type=" + type + " must filter shortcuts on target_type",
+                    keySql.contains("s.target_type=?"));
+            verify(conn, resolver);
+        }
     }
 
     // Note: there is no folder-audience test here. Solr moved from index-time access lists to
