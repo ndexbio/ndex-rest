@@ -281,9 +281,9 @@ public class FolderServiceV3 extends NdexService {
 
 			// A force delete cascades over the whole subtree, so clear the Solr state of everything it
 			// touched, not just this folder. The returned ids come from the same transaction that did
-			// the deleting. No pre-delete getFolderVisibility() is needed: the batch task deletes each
-			// id from both cores, which is also the only way to reach a row whose visibility is no
-			// longer readable once it is deleted.
+			// the deleting. No pre-delete getFolderVisibility() is needed: the batch task deletes by id,
+			// which is also the only way to reach a row whose visibility is no longer readable once it
+			// is deleted.
 			DeletedFileIds deleted = dao.deleteFolder(folderId, force, permanent);
 			dao.commit();
 			if (!deleted.isEmpty()) {

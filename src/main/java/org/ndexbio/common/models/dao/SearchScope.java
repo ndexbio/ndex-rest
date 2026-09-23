@@ -19,9 +19,9 @@ import java.util.UUID;
  * {@code WRITE}-level granted-folder set, so the caller resolves at the level it is about to ask for.
  * This record does not re-check that — it carries a decision already made.</p>
  *
- * <p>Only the private core consults a scope. The public core's filter is deliberately independent of it,
- * because an UNLISTED item must stay unlisted for everyone but its owner no matter what folder grants
- * exist.</p>
+ * <p>These sets reach private documents only. The filter pins every clause built from them to
+ * {@code visibility:PRIVATE}, because an UNLISTED item must stay unlisted for everyone but its owner no
+ * matter what folder grants exist.</p>
  *
  * @param grantedFolderIds    folders the user can reach, already expanded downward through descendants.
  *                            A network is reachable when its parent is in this set; a folder when its

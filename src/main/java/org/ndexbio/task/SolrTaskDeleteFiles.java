@@ -26,12 +26,11 @@ import org.ndexbio.rest.Configuration;
  * <p>Two properties make this a flat loop over existing primitives rather than a per-type dispatch:
  *
  * <ul>
- * <li>Folder, shortcut <em>and</em> network docs all live in the same two cores — {@code GlobalNetworkIndexManager}
- *     extends {@code NFSIndexManager} just like the folder and shortcut managers — and
- *     {@code delete(uuid, visibility)} is a type-agnostic {@code deleteById}. One manager clears any of them.</li>
- * <li>Each doc's visibility is no longer readable once its row is deleted, so rather than looking it up
- *     the id is deleted from <em>both</em> cores; a {@code deleteById} against the core the doc was not
- *     in is a harmless no-op. This mirrors {@code SolrTaskRebuildFileIdx.rebuildFolderIndex}.</li>
+ * <li>Folder, shortcut <em>and</em> network docs all live in the same core — {@code GlobalNetworkIndexManager}
+ *     extends {@code NFSIndexManager} just like the folder and shortcut managers — and {@code delete(uuid)}
+ *     is a type-agnostic {@code deleteById}. One manager clears any of them.</li>
+ * <li>Each doc's visibility is no longer readable once its row is deleted, and deleting by id needs none:
+ *     the uuid is the key. This mirrors {@code SolrTaskRebuildFileIdx.rebuildFolderIndex}.</li>
  * </ul>
  *
  * <p>One queue entry covers the whole subtree, since {@code NdexServerQueue.addSystemTask} persists a

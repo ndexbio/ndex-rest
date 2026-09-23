@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.0.7] - 2026-09-21
+## [3.0.8] - unreleased
 
 ### Changed
 
@@ -19,10 +19,11 @@ ranges, which is the root of [#199](https://github.com/ndexbio/ndex-rest/issues/
   ranked as one result set: public files plus, when authenticated, their own private and unlisted files
   and everything shared with them. It previously returned public files only. **Anonymous callers are
   unaffected** — public files were always the whole of their access.
-  - **Files of different visibilities are now ranked against each other.** One query scores every file
-  the caller may see against one corpus, so a private file of their own can sit between two public ones
-  when that is where its relevance puts it. Merging two responses client-side could only append one list
-  to the other, and the two lists carried scores derived from different corpora.
+  - **Files of different visibilities are now ranked against each other, on both APIs.** One query scores
+  every file the caller may see against one corpus, so a private file of their own can sit between two
+  public ones when that is where its relevance puts it. Public results no longer precede private ones as
+  a group: relevance alone decides the order. Previously no client could produce this list — merging two
+  responses could only append one to the other, and their scores came from different corpora.
   - **`visibility=PUBLIC` and `visibility=PRIVATE` return exactly what they returned before.** `PUBLIC`
   continues to include the caller's own unlisted files, because it narrows on the partition the public
   core held rather than on the literal field value. `UNLISTED` is still rejected with `400`, and an
@@ -32,15 +33,23 @@ ranges, which is the root of [#199](https://github.com/ndexbio/ndex-rest/issues/
   answer is an empty result set; it previously returned every public file. **This is not a breaking
   change** — those files remain readable by anyone, and a search that omits the permission or asks for
   `READ` still returns them. Authenticated `WRITE` and `ADMIN` searches are unchanged.
-  - **`POST /v2/search/network` reports a smaller `numFound`** for authenticated callers. The old value
-  summed two cores and double-counted. Pagination also starts behaving: a request for N rows used to be
-  able to return up to 2N, because each core was paginated independently.
+  - **`POST /v2/search/network` paginates correctly for authenticated callers, and its results are now
+  interleaved by relevance.** This endpoint has no `visibility` parameter and always returned everything
+  the caller could see; what changes is the order and the paging. It previously concatenated a public
+  page with a private one, so every public result preceded every private one and the two halves carried
+  scores from different corpora. Each core was also paged independently, so a request for N rows could
+  return up to 2N — N from each — and successive pages were not a partition of one result set.
+  `numFound` is now the count of matching documents rather than a sum over two cores; the two agree
+  except where the stranded-document defect had left the same file in both. Anonymous callers are
+  unaffected, since only the public core was ever queried for them.
   - A visibility change now rewrites the indexed document in place rather than moving it between cores,
   which removes the class of defect that could strand a stale copy in the core a document had left.
   - **Operators:** the `ndex-nfs` configset must be installed on the Solr server before the upgraded
   application starts, and `SolrIndexBuilder nfs` (or `GET /v3/admin/reindex-v3`) must then populate the
   new core. `public-nfs` and `private-nfs` are left untouched as the rollback path. Containers install
   the configset automatically on start, including on an upgrade over an existing volume.
+
+## [3.0.7] - 2026-09-21
 
 ### Breaking Changes
 

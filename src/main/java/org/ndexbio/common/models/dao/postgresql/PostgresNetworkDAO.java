@@ -1088,7 +1088,8 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 			throw new NdexException("Permission can only be WRITE or READ in this function.");
 
 		// Resolved once for the request: search reads no permission state from the index, so this is what
-		// folder-inherited access is decided from. Only the private core consults it.
+		// folder-inherited access is decided from. The filter pins it to private documents itself, so an
+		// unlisted file stays unlisted whatever grants a caller holds.
 		SearchScope scope = resolveSearchScope(loggedInUser == null ? null : loggedInUser.getExternalId(),
 				simpleNetworkQuery.getPermission() == Permissions.WRITE ? Permissions.WRITE : Permissions.READ);
 

@@ -384,6 +384,49 @@ curl -s -o /dev/null -X POST -u "${A_AUTH}" -H 'Content-Type: application/json' 
   "${BASE_URL}/v3/batch/files/setvisibility" || true
 p_wait_indexed "${A_AUTH}" "${V2_PRIV_UUID}" "network restored to PRIVATE"
 
+# The same rule, for the two types a folder grant reaches by their OWN uuid rather than through a
+# parent. The network above is reached by parentUuid, so it exercises a different scope clause than
+# these do: grantedFolderIds expands to every descendant, and readableShortcutIds covers shortcuts
+# sitting in a granted folder. Both clauses sit inside the same PRIVATE pin, and that pin is the only
+# thing keeping an unlisted folder or shortcut out of a grantee's results.
+#
+# Both fixtures are asserted FOUND by all three granted classes earlier in this group, so a "no" here
+# is the visibility flip and nothing else.
+for ENT in "subfolder:${P_SUB}:folders" "shortcut:${P_SC}:shortcuts"; do
+  E_LBL="${ENT%%:*}"; E_REST="${ENT#*:}"; E_ID="${E_REST%%:*}"; E_PATH="${E_REST##*:}"
+
+  # The parent is resent on every PUT: both update DAOs write parent unconditionally, so omitting it
+  # moves the item to the root and out of the shared folder — which would make the assertions below
+  # pass for the wrong reason, measuring a reparent rather than the visibility flip.
+  curl -s -o /dev/null -X PUT -u "${A_AUTH}" -H 'Content-Type: application/json' \
+    -d "{\"visibility\":\"UNLISTED\",\"parent\":\"${P_FOLDER}\"}" \
+    "${BASE_URL}/v3/files/${E_PATH}/${E_ID}" || true
+  p_wait_indexed "${A_AUTH}" "${E_ID}" "UNLISTED ${E_LBL}" "PUBLIC"
+
+  p_expect "UNLISTED ${E_LBL} IS searchable by its owner" \
+    "$(p_search "${A_AUTH}" "${E_ID}" PUBLIC)" yes
+  p_expect "UNLISTED ${E_LBL} IS searchable by its owner with visibility omitted" \
+    "$(p_search "${A_AUTH}" "${E_ID}" ANY)" yes
+
+  for PAIR in "write-grantee:${B_AUTH}" "read-grantee:${C_AUTH}" "no-grant:${D_AUTH}" "anonymous:"; do
+    CLS="${PAIR%%:*}"; AUTH="${PAIR#*:}"
+    p_expect "UNLISTED ${E_LBL} stays unlisted for ${CLS}, despite the folder grant" \
+      "$(p_search "${AUTH}" "${E_ID}" PUBLIC)" no
+    p_expect "UNLISTED ${E_LBL} stays unlisted for ${CLS} with visibility omitted" \
+      "$(p_search "${AUTH}" "${E_ID}" ANY)" no
+  done
+
+  # ...and still openable by id, the same as the network: unlisted restricts listing, never access.
+  p_expect "the WRITE grantee can still OPEN the unlisted ${E_LBL} by id" \
+    "$(p_code "${B_AUTH}" GET "${BASE_URL}/v3/files/${E_PATH}/${E_ID}")" 200
+
+  # Restored, because later assertions in this group expect both back in the PRIVATE partition.
+  curl -s -o /dev/null -X PUT -u "${A_AUTH}" -H 'Content-Type: application/json' \
+    -d "{\"visibility\":\"PRIVATE\",\"parent\":\"${P_FOLDER}\"}" \
+    "${BASE_URL}/v3/files/${E_PATH}/${E_ID}" || true
+  p_wait_indexed "${A_AUTH}" "${E_ID}" "${E_LBL} restored to PRIVATE"
+done
+
 # Direct and inherited grants are a union — most permissive wins and neither lowers the
 # other. Easy to regress into an override, so assert both directions.
 # The subject is the folder owner's network inside the shared folder: the WRITE grantee holds
