@@ -137,6 +137,42 @@ public class TestSearchServiceV3 {
                 vdesc.toLowerCase().contains("authentic") || vdesc.toLowerCase().contains("credential"));
         Assert.assertTrue("visibility doc should note UNLISTED is not a valid search mode",
                 vdesc.contains("UNLISTED"));
+
+        // Omitting the parameter is the request most callers want and the one that changed, so the
+        // doc has to say what each kind of caller gets rather than leaving anonymous to inference.
+        Assert.assertTrue("visibility doc should say what omitting it returns: " + vdesc,
+                vdesc.toLowerCase().contains("omit"));
+        Assert.assertTrue("visibility doc should spell out the anonymous case: " + vdesc,
+                vdesc.toLowerCase().contains("anonymous caller gets"));
+
+        // A permission on the query is the other half of who-sees-what, and an anonymous WRITE or
+        // ADMIN search returning nothing is surprising enough that it belongs in the contract.
+        Assert.assertTrue("the operation doc should describe the permission field: " + desc,
+                desc.toLowerCase().contains("permission"));
+        Assert.assertTrue("the operation doc should state that anonymous WRITE/ADMIN finds nothing: " + desc,
+                desc.toLowerCase().contains("empty result set"));
+    }
+
+    @Test
+    public void searchFilesDocumentsTheResponsesItCanReturn() throws Exception {
+        java.lang.reflect.Method m = SearchServiceV3.class.getMethod(
+                "searchFiles",
+                org.ndexbio.model.object.SimpleFileQuery.class,
+                org.ndexbio.model.object.network.VisibilityType.class,
+                PagingParameters.class);
+        io.swagger.v3.oas.annotations.responses.ApiResponses responses =
+                m.getAnnotation(io.swagger.v3.oas.annotations.responses.ApiResponses.class);
+        Assert.assertNotNull("searchFiles must document its responses", responses);
+
+        java.util.Set<String> codes = new java.util.HashSet<>();
+        for (io.swagger.v3.oas.annotations.responses.ApiResponse r : responses.value()) {
+            codes.add(r.responseCode());
+        }
+        // Both rejections are reachable from the visibility parameter alone, so a client needs them
+        // documented to tell a bad request from a missing credential.
+        Assert.assertTrue("200 must be documented, got " + codes, codes.contains("200"));
+        Assert.assertTrue("400 (UNLISTED) must be documented, got " + codes, codes.contains("400"));
+        Assert.assertTrue("401 (anonymous PRIVATE) must be documented, got " + codes, codes.contains("401"));
     }
 
     /**
