@@ -395,12 +395,8 @@ p_wait_indexed "${A_AUTH}" "${V2_PRIV_UUID}" "network restored to PRIVATE"
 for ENT in "subfolder:${P_SUB}:folders" "shortcut:${P_SC}:shortcuts"; do
   E_LBL="${ENT%%:*}"; E_REST="${ENT#*:}"; E_ID="${E_REST%%:*}"; E_PATH="${E_REST##*:}"
 
-  # The parent is resent on every PUT: both update DAOs write parent unconditionally, so omitting it
-  # moves the item to the root and out of the shared folder — which would make the assertions below
-  # pass for the wrong reason, measuring a reparent rather than the visibility flip.
   curl -s -o /dev/null -X PUT -u "${A_AUTH}" -H 'Content-Type: application/json' \
-    -d "{\"visibility\":\"UNLISTED\",\"parent\":\"${P_FOLDER}\"}" \
-    "${BASE_URL}/v3/files/${E_PATH}/${E_ID}" || true
+    -d '{"visibility":"UNLISTED"}' "${BASE_URL}/v3/files/${E_PATH}/${E_ID}" || true
   p_wait_indexed "${A_AUTH}" "${E_ID}" "UNLISTED ${E_LBL}" "PUBLIC"
 
   p_expect "UNLISTED ${E_LBL} IS searchable by its owner" \
@@ -422,9 +418,29 @@ for ENT in "subfolder:${P_SUB}:folders" "shortcut:${P_SC}:shortcuts"; do
 
   # Restored, because later assertions in this group expect both back in the PRIVATE partition.
   curl -s -o /dev/null -X PUT -u "${A_AUTH}" -H 'Content-Type: application/json' \
-    -d "{\"visibility\":\"PRIVATE\",\"parent\":\"${P_FOLDER}\"}" \
-    "${BASE_URL}/v3/files/${E_PATH}/${E_ID}" || true
+    -d '{"visibility":"PRIVATE"}' "${BASE_URL}/v3/files/${E_PATH}/${E_ID}" || true
   p_wait_indexed "${A_AUTH}" "${E_ID}" "${E_LBL} restored to PRIVATE"
+done
+
+# A rename must not move the item. Both update statements used to write the parent column on every
+# request, so a body that carried only a name reparented the item to the root — taking it out of the
+# shared folder and silently revoking the access its grantees inherited from that folder. The grantee
+# assertions are the point: a preserved parent is only meaningful if the grant it carries survives.
+for ENT in "subfolder:${P_SUB}:folders" "shortcut:${P_SC}:shortcuts"; do
+  E_LBL="${ENT%%:*}"; E_REST="${ENT#*:}"; E_ID="${E_REST%%:*}"; E_PATH="${E_REST##*:}"
+  E_NEW="Renamed${E_LBL}${RANDOM}${RANDOM}"
+
+  curl -s -o /dev/null -X PUT -u "${A_AUTH}" -H 'Content-Type: application/json' \
+    -d "{\"name\":\"${E_NEW}\"}" "${BASE_URL}/v3/files/${E_PATH}/${E_ID}" || true
+
+  p_expect "renaming the ${E_LBL} without a parent leaves it in the shared folder" \
+    "$(curl -s -u "${A_AUTH}" "${BASE_URL}/v3/files/${E_PATH}/${E_ID}" | grep -c "${P_FOLDER}")" 1
+  p_expect "the renamed ${E_LBL} is still listed under the shared folder" \
+    "$(p_listed "${A_AUTH}" "${E_ID}")" yes
+  p_expect "the WRITE grantee still reaches the renamed ${E_LBL} through the folder grant" \
+    "$(p_code "${B_AUTH}" GET "${BASE_URL}/v3/files/${E_PATH}/${E_ID}")" 200
+  p_expect "the READ grantee still finds the renamed ${E_LBL} in search" \
+    "$(p_search "${C_AUTH}" "${E_ID}")" yes
 done
 
 # Direct and inherited grants are a union — most permissive wins and neither lowers the

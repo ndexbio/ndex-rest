@@ -308,8 +308,8 @@ public class FolderServiceV3 extends NdexService {
                           - folderid: UUID of the folder to update
                           
                           Request Body:
-                          - name: Optional. New name for the folder
-                          - parent: Optional. New parent folder UUID
+                          - name: Optional. New name for the folder. Omit it to leave the name unchanged.
+                          - parent: Optional. New parent folder UUID. Omit it to leave the folder where it is.
                           
                           Edge Cases:
                           - Moving to descendant folder: Returns 400 Bad Request (would create cycle)

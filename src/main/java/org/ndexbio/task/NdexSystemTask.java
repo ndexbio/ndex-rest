@@ -9,7 +9,6 @@ import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.Status;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.TaskType;
-import org.ndexbio.model.object.network.NetworkIndexLevel;
 import org.ndexbio.model.object.network.VisibilityType;
 
 
@@ -61,11 +60,14 @@ public abstract class NdexSystemTask  {
 				return new SolrTaskDeleteNetwork(UUID.fromString(t.getResource()),
 						!Boolean.FALSE.equals(t.getAttribute(SolrTaskDeleteNetwork.globalIdxAttr)));
 			case SYS_SOLR_REBUILD_NETWORK_INDEX:
-				return new SolrTaskRebuildNetworkIdx(UUID.fromString(t.getResource()), SolrIndexScope.valueOf((String)t.getAttribute(SolrTaskRebuildNetworkIdx.AttrScope)), 
+				// A legacy row may still carry "indexLevel" and "fromCX2" attributes. Neither is read any
+				// more: index level never affected this task (it overwrote the value it was handed), and
+				// the CX1/CX2 decision is now taken from the network itself when the task runs, so a
+				// replayed row cannot reindex against the wrong aspect files.
+				return new SolrTaskRebuildNetworkIdx(UUID.fromString(t.getResource()),
+						  SolrIndexScope.valueOf((String)t.getAttribute(SolrTaskRebuildNetworkIdx.AttrScope)),
 						  ((Boolean)t.getAttribute(SolrTaskRebuildNetworkIdx.AttrCreateOnly)).booleanValue(),
-						  (Set<String>)t.getAttribute("fields"), 
-						  NetworkIndexLevel.valueOf((String)t.getAttribute("indexLevel")),
-								  ((Boolean)t.getAttribute(SolrTaskRebuildNetworkIdx.FORMCX2FILE)).booleanValue());
+						  (Set<String>)t.getAttribute("fields"));
 			case SYS_LOAD_NETWORK:
 				return new CXNetworkLoadingTask (UUID.fromString(t.getResource()),
 						(Boolean)t.getAttribute("isUpdate"), 

@@ -372,3 +372,209 @@ fi
 
 # ── STEP: v2 Solr search ─────────────────────────────────────────────────────
 
+
+# ── STEP: a rename must reach the search index ───────────────────────────────
+# Every mutation endpoint used to skip the re-index when the network's index level was NONE — which
+# is the column default, so in practice a rename never reached Solr. The name changed in Postgres
+# and search kept matching the old one. Result names are read from Postgres, so the stale document
+# was invisible in the UI: the network looked correctly named right up until you searched for it.
+#
+# The attribute assertions are the other half. The rebuild picks CX1 or CX2 aspect files, and a
+# fresh document is composed on every rebuild, so choosing the wrong one silently drops every
+# attribute that only the CX2 path contributes. Asserting the name alone would let that ship.
+
+# The endpoint overwrites name, description, version, visibility and properties from the payload, so
+# a partial body would blank the rest — including the properties that carry `organism`. Round-tripping
+# the current summary with only the name replaced is what the web UI does, and it keeps the attribute
+# assertions meaningful.
+rn_rename() { # uuid new-name -> exits the suite on failure
+  local body payload code
+  body=$(curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/network/$1/summary")
+  payload=$(echo "${body}" | sed "s/\"name\":\"[^\"]*\"/\"name\":\"$2\"/")
+  grep -q "$2" <<<"${payload}" \
+    || api_fail "could not set the name in the round-tripped summary for $1. Body: ${body:0:300}"
+  code=$(curl -s -o /dev/null -w "%{http_code}" -X PUT -u "${TEST_USER}:${TEST_PASS}" \
+    -H "Content-Type: application/json" -d "${payload}" \
+    "${BASE_URL}/v2/network/$1/summary")
+  [[ "${code}" =~ ^2 ]] || api_fail "PUT /v2/network/{id}/summary (rename to $2) → HTTP ${code}"
+}
+
+step "Renaming a network re-indexes it, and its attributes survive"
+
+RN_FIXTURE="${FIXTURES_DIR}/ChEMBL - All compounds vs yeast targets.cx2"
+RN_A="RenameProbeAlpha${RANDOM}${RANDOM}"
+RN_B="RenameProbeBeta${RANDOM}${RANDOM}"
+RN_ORGANISM="Canis"          # from the fixture's networkAttributes, indexed only via the CX2 path
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: POST /v3/networks?visibility=PRIVATE  [rename probe, 469 nodes]"
+RN_RESP=$(curl -s -w "\n%{http_code}" -X POST -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" --data-binary "@${RN_FIXTURE}" \
+  "${BASE_URL}/v3/networks?visibility=PRIVATE")
+RN_HTTP=$(echo "${RN_RESP}" | tail -1); RN_BODY=$(echo "${RN_RESP}" | head -1)
+[[ "${RN_HTTP}" == "201" ]] || api_fail "POST /v3/networks (rename probe) → HTTP ${RN_HTTP}. Body: ${RN_BODY:0:300}"
+RN_UUID=$(echo "${RN_BODY}" | grep -o '"uuid":"[^"]*"' | head -1 | cut -d'"' -f4)
+[[ -n "${RN_UUID}" ]] || api_fail "no uuid in rename-probe create body. Body: ${RN_BODY:0:300}"
+
+RN_ELAPSED=0
+while ! curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v3/networks/${RN_UUID}/summary" \
+     | grep -q '"completed":true'; do
+  [[ ${RN_ELAPSED} -ge ${LOAD_TIMEOUT} ]] && api_fail "rename probe ${RN_UUID} did not complete within ${LOAD_TIMEOUT}s"
+  sleep 5; (( RN_ELAPSED += 5 )) || true
+  echo "  Waiting for rename probe ${RN_UUID}... (${RN_ELAPSED}s)"
+done
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: search files (organism indexed at upload)"
+poll_files_until_present PRIVATE "${RN_ORGANISM}" "${RN_UUID}" "rename probe organism at upload"
+api_pass "upload indexed the network's organism attribute"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: PUT /v2/network/${RN_UUID}/summary (rename → ${RN_A})"
+rn_rename "${RN_UUID}" "${RN_A}"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: search files (renamed network findable by its new name)"
+poll_files_until_present PRIVATE "${RN_A}" "${RN_UUID}" "rename reached the index"
+api_pass "rename reached the search index: the new name matches"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: search files (organism still indexed after the rename)"
+poll_files_until_present PRIVATE "${RN_ORGANISM}" "${RN_UUID}" "rename preserved organism"
+api_pass "the re-index preserved the network's organism attribute"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: ndex-nfs holds exactly one document for the renamed network"
+RN_COUNT=$(docker exec "${CONTAINER_NAME}" bash -c \
+  "curl -s 'http://localhost:8983/solr/ndex-nfs/select?q=uuid:${RN_UUID}&rows=0&wt=json'" 2>/dev/null \
+  | grep -oE '"numFound":[0-9]+' | grep -oE '[0-9]+$' || true)
+[[ "${RN_COUNT}" == "1" ]] \
+  || api_fail "rename duplicated the document: numFound=${RN_COUNT:-unset} for ${RN_UUID}"
+api_pass "the rename replaced the document rather than adding a second copy"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: PUT /v2/network/${RN_UUID}/summary (rename again → ${RN_B})"
+rn_rename "${RN_UUID}" "${RN_B}"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: search files (second name matches, first no longer does)"
+poll_files_until_present PRIVATE "${RN_B}" "${RN_UUID}" "second rename indexing"
+poll_files_until_absent  PRIVATE "${RN_A}" "${RN_UUID}" "first name stale doc"
+api_pass "a second rename replaced the name again: the previous one stops matching"
+
+# ── STEP: a visibility change must reach the index too ───────────────────────
+# Same gate, different endpoint. /systemproperty writes a field the document actually stores, so a
+# skipped re-index leaves the document claiming the old visibility.
+
+step "Changing visibility via /systemproperty re-indexes the network"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: PUT /v2/network/${RN_UUID}/systemproperty (visibility=PUBLIC)"
+RN_VIS=$(curl -s -o /dev/null -w "%{http_code}" -X PUT -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" -d '{"visibility":"PUBLIC"}' \
+  "${BASE_URL}/v2/network/${RN_UUID}/systemproperty")
+[[ "${RN_VIS}" =~ ^2 ]] || api_fail "PUT /v2/network/{id}/systemproperty → HTTP ${RN_VIS}"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: search files visibility=PUBLIC (document carries the new visibility)"
+poll_files_until_present PUBLIC "${RN_B}" "${RN_UUID}" "visibility change indexing"
+poll_files_until_absent  PRIVATE "${RN_B}" "${RN_UUID}" "visibility change old partition"
+api_pass "the visibility change reached the index: PUBLIC matches, PRIVATE no longer does"
+
+# ── STEP: a partial summary body is a 400, not a 500 ─────────────────────────
+# PUT /v2/network/{id}/summary overwrites name, description, version, visibility and properties from
+# the payload. A body missing visibility used to reach an unguarded getVisibility().toString() in the
+# DAO and surface as a server error, which tells a client nothing about what it got wrong.
+
+step "A partial network summary is rejected as a client error"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: PUT /v2/network/${RN_UUID}/summary (name only — no visibility)"
+PB_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X PUT -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" -d '{"name":"PartialBodyProbe"}' \
+  "${BASE_URL}/v2/network/${RN_UUID}/summary")
+[[ "${PB_CODE}" == "400" ]] \
+  || api_fail "a summary without visibility should be 400, got HTTP ${PB_CODE}"
+api_pass "PUT /v2/network/{id}/summary without visibility → 400"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: search files (the rejected request changed nothing)"
+poll_files_until_present PUBLIC "${RN_B}" "${RN_UUID}" "name unchanged after the rejected partial body"
+api_pass "the rejected request left the network's name untouched"
+
+# ── STEP: updating a network's content re-indexes it ─────────────────────────
+# The CX1 update path carried the same index-level gate, falling back to a node-core-only rebuild
+# that skipped the file document. Replacing the content changes the network's name, so the index has
+# to follow it.
+
+step "Replacing a network's CX1 content re-indexes its new name"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: POST /v2/network (CX1 upload for the content-update probe)"
+CU_LOC=$(curl -s -X POST -u "${TEST_USER}:${TEST_PASS}" -H "Content-Type: application/json" \
+  --data-binary "@${FIXTURES_DIR}/WP1984 - Integrated breast cancer pathway - Homo sapiens.cx" \
+  "${BASE_URL}/v2/network")
+CU_UUID=$(echo "${CU_LOC}" | awk -F/ '{print $NF}' | tr -d '\r\n')
+[[ "${CU_UUID}" =~ ^[0-9a-f-]{36}$ ]] || api_fail "no uuid from CX1 upload. Response: ${CU_LOC:0:200}"
+
+CU_ELAPSED=0
+while ! curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/network/${CU_UUID}/summary" \
+     | grep -q '"completed":true'; do
+  [[ ${CU_ELAPSED} -ge ${LOAD_TIMEOUT} ]] && api_fail "content-update probe ${CU_UUID} did not complete within ${LOAD_TIMEOUT}s"
+  sleep 5; (( CU_ELAPSED += 5 )) || true
+  echo "  Waiting for content-update probe ${CU_UUID}... (${CU_ELAPSED}s)"
+done
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: search files (original CX1 name indexed)"
+poll_files_until_present PRIVATE "Integrated breast cancer pathway" "${CU_UUID}" "CX1 name at upload"
+api_pass "the CX1 upload indexed the network under its original name"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: PUT /v2/network/${CU_UUID} (replace content — different network name)"
+CU_PUT=$(curl -s -o /dev/null -w "%{http_code}" -X PUT -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" \
+  --data-binary "@${FIXTURES_DIR}/WP4255 - Non-small cell lung cancer - Homo sapiens.cx" \
+  "${BASE_URL}/v2/network/${CU_UUID}")
+[[ "${CU_PUT}" =~ ^2 ]] || api_fail "PUT /v2/network/{id} (content update) → HTTP ${CU_PUT}"
+
+CU_ELAPSED=0
+while ! curl -s -u "${TEST_USER}:${TEST_PASS}" "${BASE_URL}/v2/network/${CU_UUID}/summary" \
+     | grep -q '"completed":true'; do
+  [[ ${CU_ELAPSED} -ge ${LOAD_TIMEOUT} ]] && api_fail "content update of ${CU_UUID} did not complete within ${LOAD_TIMEOUT}s"
+  sleep 5; (( CU_ELAPSED += 5 )) || true
+  echo "  Waiting for the content update to finish... (${CU_ELAPSED}s)"
+done
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: search files (content update reached the index)"
+# Only the positive direction is asserted here. These fixtures are real pathway names sharing most of
+# their vocabulary ("cancer", "pathway"), and the query parser matches any term, so an "old name is
+# gone" check would fail on the replacement's own words rather than on a stale document. That the
+# rebuild replaces rather than duplicates is pinned by the rename step above, which uses tokens that
+# exist nowhere else.
+poll_files_until_present PRIVATE "Non-small cell lung cancer" "${CU_UUID}" "content update indexing"
+api_pass "the content update re-indexed the network under its new name"
+
+# ── STEP: updating aspects re-indexes the network ────────────────────────────
+# PUT /{id}/aspects carried the same gate, and the networkAttributes aspect is where the name lives,
+# so a skipped rebuild left the index describing the network as it was before the aspect update.
+
+step "Updating the networkAttributes aspect re-indexes the network"
+
+AU_NAME="AspectUpdateProbe${RANDOM}${RANDOM}"
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: PUT /v2/network/${CU_UUID}/aspects (networkAttributes → ${AU_NAME})"
+AU_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X PUT -u "${TEST_USER}:${TEST_PASS}" \
+  -H "Content-Type: application/json" \
+  -d "[{\"numberVerification\":[{\"longNumber\":281474976710655}]},
+       {\"metaData\":[{\"name\":\"networkAttributes\",\"elementCount\":1,\"version\":\"1.0\"}]},
+       {\"networkAttributes\":[{\"n\":\"name\",\"d\":\"string\",\"v\":\"${AU_NAME}\"}]},
+       {\"status\":[{\"error\":\"\",\"success\":true}]}]" \
+  "${BASE_URL}/v2/network/${CU_UUID}/aspects")
+[[ "${AU_CODE}" =~ ^2 ]] || api_fail "PUT /v2/network/{id}/aspects → HTTP ${AU_CODE}"
+
+CALL_NUM=$((CALL_NUM+1))
+echo "  API call ${CALL_NUM}: search files (aspect update reached the index)"
+poll_files_until_present PRIVATE "${AU_NAME}" "${CU_UUID}" "aspect update indexing"
+api_pass "the aspect update re-indexed the network under its new name"

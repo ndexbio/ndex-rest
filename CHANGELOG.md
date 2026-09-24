@@ -49,6 +49,28 @@ ranges, which is the root of [#199](https://github.com/ndexbio/ndex-rest/issues/
   new core. `public-nfs` and `private-nfs` are left untouched as the rollback path. Containers install
   the configset automatically on start, including on an upgrade over an existing volume.
 
+### Fixed
+
+- **Editing a network now updates search.** Every endpoint that changes a network skipped the
+re-index unless its index level was set, and that column defaults to `NONE` — so the edit reached
+Postgres and never reached Solr, leaving the network findable only as it used to be. This affected
+renames, visibility changes, content replacement and aspect updates alike. Index level no longer
+affects whether a network is findable.
+  - **Operators:** run `SolrIndexBuilder nfs` (or `GET /v3/admin/reindex-v3`) once after upgrading to
+  resync anything stranded before the fix.
+- **Sharing a network no longer triggers a re-index.** Search stores no permission state, so a grant
+or revoke could not change the indexed document. Who may find a network is resolved on every query and
+still takes effect on the grantee's next search.
+- **Renaming a folder or shortcut no longer moves it to the top level.** `PUT /v3/files/folders/{folderid}`
+and `PUT /v3/files/shortcuts/{shortcutid}` wrote the parent on every request, so a body that carried only
+a name relocated the item out of its folder — silently revoking the access its grantees inherited from
+that folder. An omitted parent now leaves the item where it is, matching how the same requests already
+treat an omitted name or description.
+- **`PUT /v2/network/{networkid}/summary` answers a partial body with `400` instead of `500`.** It
+overwrites name, description, version, visibility and properties together, so a payload without a
+visibility is a bad request rather than a server error. Use `PUT /v2/network/{networkid}/profile` to
+change a subset of those fields.
+
 ## [3.0.7] - 2026-09-21
 
 ### Breaking Changes

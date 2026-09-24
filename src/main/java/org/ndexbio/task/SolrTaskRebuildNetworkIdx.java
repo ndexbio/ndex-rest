@@ -34,7 +34,6 @@ import org.ndexbio.model.cx.FunctionTermElement;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.TaskType;
-import org.ndexbio.model.object.network.NetworkIndexLevel;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
@@ -51,26 +50,21 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 	private UUID networkId;
 	private SolrIndexScope idxScope;
 	private boolean createOnly;
-	private boolean fromCX2File;
-	
+
     private static final TaskType taskType = TaskType.SYS_SOLR_REBUILD_NETWORK_INDEX;
     public static final String AttrScope = "scope";
     public static final String AttrCreateOnly ="createOnly";
-    public static final String FORMCX2FILE = "fromCX2";
     private Set<String> indexedFields;
-    private NetworkIndexLevel indexLevel;
     private final SolrObjectFactory solrObjectFactory;
     
 	
-	public SolrTaskRebuildNetworkIdx (UUID networkUUID, SolrIndexScope scope, boolean createOnly, 
-			Set<String> indexedFields, NetworkIndexLevel level, boolean fromCX2File) {
+	public SolrTaskRebuildNetworkIdx (UUID networkUUID, SolrIndexScope scope, boolean createOnly,
+			Set<String> indexedFields) {
 		super();
 		this.networkId = networkUUID;
 		this.idxScope = scope;
 		this.createOnly = createOnly;
 		this.indexedFields =indexedFields;
-		this.indexLevel = NetworkIndexLevel.ALL;
-		this.fromCX2File = fromCX2File;
 		this.solrObjectFactory = Configuration.getInstance().getSolrObjectFactory();
 	}
 	
@@ -84,6 +78,13 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 
 			if (summary == null)
 				throw new NdexException("Network " + networkId + " not found in the server.");
+
+			// Which aspect files this network actually has, asked of the network rather than of the
+			// caller. A caller that guessed wrong sent a CX2 network down the CX1 path, where the
+			// aspect files do not exist and the iterator yields nothing -- and because each rebuild
+			// composes a fresh document, every attribute only the CX2 path adds (organism, disease,
+			// tissue, networkType and the rest) was dropped from the index by the upsert.
+			boolean fromCX2File = dao.hasCX2(networkId);
 
 			// drop the old ones.
 			if (!createOnly) {
@@ -102,7 +103,7 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 				long t1 = Calendar.getInstance().getTimeInMillis();
 				int committedDocs;
 				try (SingleNetworkSolrIdxManager idx2 = solrObjectFactory.getSingleNetworkSolrIdxManager(networkId.toString())) {
-					if (this.fromCX2File)
+					if (fromCX2File)
 						committedDocs = idx2.createIndexFromCx2(indexedFields, summary.getNodeCount());
 					else
 						committedDocs = idx2.createIndex(indexedFields, summary.getNodeCount());
@@ -124,7 +125,7 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 					String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/";
 
 					// Always index network attributes (META + ALL behavior)
-					if (this.fromCX2File) {
+					if (fromCX2File) {
 
 						String cx2AspectPath = pathPrefix + networkId.toString() + "/" + CX2NetworkLoader.cx2AspectDirName + "/";
 						File attrFile = new File(cx2AspectPath + CxNetworkAttribute.ASPECT_NAME);
@@ -318,8 +319,6 @@ public class SolrTaskRebuildNetworkIdx extends NdexSystemTask {
 		t.getAttributes().put(AttrScope, this.idxScope);
 		t.getAttributes().put(AttrCreateOnly, Boolean.valueOf(this.createOnly));
 		t.setAttribute("fields", indexedFields);
-		t.setAttribute("indexLevel", this.indexLevel);
-		t.setAttribute(FORMCX2FILE, this.fromCX2File);
 		return t;
 	}
 

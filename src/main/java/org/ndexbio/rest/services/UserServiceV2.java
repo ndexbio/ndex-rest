@@ -81,7 +81,6 @@ import org.ndexbio.model.object.RequestType;
 import org.ndexbio.model.object.ResponseType;
 import org.ndexbio.model.object.NdexShortcut;
 import org.ndexbio.model.object.User;
-import org.ndexbio.model.object.network.NetworkIndexLevel;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
@@ -887,16 +886,11 @@ public class UserServiceV2 extends NdexService {
 			if ( act.equals("accept")) {
 				reqs.setResponse(ResponseType.ACCEPTED);
 				try ( PostgresNetworkDAO ndao = new PostgresNetworkDAO()) {
+					// No re-index: the search document holds no permission state. Who may find a network
+					// is resolved per request from the database into a SearchScope, so the grant takes
+					// effect on the grantee's very next search.
 					ndao.grantPrivilegeToUser(reqs.getDestinationUUID(), reqs.getSourceUUID(), reqs.getPermission());
 					ndao.commit();
-					
-					// update the solr Index
-					NetworkIndexLevel idxLvl = ndao.getIndexLevel(reqs.getDestinationUUID());
-					if(idxLvl != NetworkIndexLevel.NONE) {
-						ndao.setFlag(reqs.getDestinationUUID(), "iscomplete", false);
-						ndao.commit();
-						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(reqs.getDestinationUUID(),SolrIndexScope.global,false,null,idxLvl, false));
-					}
 				}
 			} else {
 				reqs.setResponse(ResponseType.DECLINED);

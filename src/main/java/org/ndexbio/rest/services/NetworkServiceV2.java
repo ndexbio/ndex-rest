@@ -132,6 +132,8 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 
 @Path("/v2/network")
 public class NetworkServiceV2 extends NdexService {
@@ -307,15 +309,9 @@ public class NetworkServiceV2 extends NdexService {
 				daoNew.unlockNetwork(networkUUID);				
 			}
 			
-			NetworkIndexLevel idxLvl = daoNew.getIndexLevel(networkUUID);
-			if ( idxLvl != NetworkIndexLevel.NONE) {
-				daoNew.setFlag(networkUUID, "iscomplete",false);
-				daoNew.commit();
-				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false,null,idxLvl,false));
-			} else {
-				daoNew.setFlag(networkUUID, "iscomplete", true);
-				daoNew.commit();
-			}
+			daoNew.setFlag(networkUUID, "iscomplete",false);
+			daoNew.commit();
+			NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false,null));
 			
 			return i;
 		} catch (Exception e) {
@@ -789,13 +785,10 @@ public class NetworkServiceV2 extends NdexService {
 
 			int count = networkDao.revokeUserPrivilege(networkId, userId);
 
-			// update the solr Index
-			NetworkIndexLevel lvl = networkDao.getIndexLevel(networkId);
-			if ( lvl != NetworkIndexLevel.NONE) {
-				networkDao.setFlag(networkId, "iscomplete", false); 
-				networkDao.commit();
-				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null,lvl, false));
-			}
+			// No re-index: the search document holds no permission state. Who may find a network is
+			// resolved per request from the database into a SearchScope, so a revoke takes effect on
+			// the caller's very next search.
+			networkDao.commit();
             return count;
 		} 
 	}
@@ -848,15 +841,12 @@ public class NetworkServiceV2 extends NdexService {
     			throw new InvalidNetworkException();
 
 			int count = networkDao.grantPrivilegeToUser(networkId, userId, p);
-			//networkDao.commit();
-			
-			// update the solr Index
-			NetworkIndexLevel lvl = networkDao.getIndexLevel(networkId);
-			if ( lvl != NetworkIndexLevel.NONE) {
-				networkDao.setFlag(networkId, "iscomplete", false);
-				networkDao.commit();
-				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null,lvl, false));
-			}
+
+			// No re-index: the search document holds no permission state. Who may find a network is
+			// resolved per request from the database into a SearchScope, so a grant takes effect on
+			// the grantee's very next search.
+			networkDao.commit();
+
 			
 			logger.info("[end: Updated permission for network {}]", networkId);
 	        return count;
@@ -911,7 +901,7 @@ public class NetworkServiceV2 extends NdexService {
 					
 					networkDao.setFlag(networkUUID, "iscomplete", false);
 					networkDao.commit();
-					NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false,null,NetworkIndexLevel.ALL, false));
+					NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false,null));
 					
 				} else {
 					if ( networkDao.isCertified(networkUUID))
@@ -993,16 +983,10 @@ public class NetworkServiceV2 extends NdexService {
 
 					networkDao.unlockNetwork(networkUUID);
 					
-					// update the solr Index 
-					NetworkIndexLevel lvl = networkDao.getIndexLevel(networkUUID);
-					if ( lvl != NetworkIndexLevel.NONE) {
-					  networkDao.setFlag(networkUUID, "iscomplete", false);
-					  networkDao.commit();
-					  NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false,null,lvl, false));
-					} else {
-						  networkDao.setFlag(networkUUID, "iscomplete", true);
-						  networkDao.commit();
-					}
+					// update the solr Index
+					networkDao.setFlag(networkUUID, "iscomplete", false);
+					networkDao.commit();
+					NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false,null));
 				} catch ( SQLException | IOException | IllegalArgumentException |NdexException e ) {
 					networkDao.rollback();
 					try {
@@ -1170,7 +1154,13 @@ public class NetworkServiceV2 extends NdexService {
 
 	@PUT
 	@Path("/{networkid}/summary")
-	@Operation(summary = "Update Network Profile and properties", description = "This function uses the name,description, version, visibility and properties fields in the payload to overwrite the corresponding fields of the given network on server.")
+	@Operation(summary = "Update Network Profile and properties", description = "Overwrites the name, description, version, visibility and properties fields of the given network from the payload. All five are replaced together, so a field the payload omits is cleared and a payload without a visibility is rejected with 400. To change only some of them, use PUT /network/{networkid}/profile.")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Network updated"),
+			@ApiResponse(responseCode = "400", description = "The payload is missing or carries no visibility"),
+			@ApiResponse(responseCode = "401", description = "The caller has no write access to this network"),
+			@ApiResponse(responseCode = "404", description = "Network not found")
+	})
 	@Produces("application/json")
 	public void updateNetworkSummary(
 			@PathParam("networkid") final String networkId,
@@ -1179,6 +1169,15 @@ public class NetworkServiceV2 extends NdexService {
             throws  NdexException, SQLException , IOException, IllegalArgumentException 
     {
 		
+		// This endpoint overwrites all five fields from the payload, so a partial body is a client
+		// error rather than a partial update. Rejecting it here keeps it a 400: the visibility is
+		// dereferenced unguarded further down, which turned an incomplete payload into a 500.
+		if (summary == null || summary.getVisibility() == null)
+			throw new BadRequestException(
+					"A network summary with a visibility is required: this operation overwrites name, "
+					+ "description, version, visibility and properties. Use PUT /network/{networkid}/profile "
+					+ "to change a subset of them.");
+
 		try (PostgresNetworkDAO networkDao = new PostgresNetworkDAO()){
 
 			User user = getLoggedInUser();
@@ -1216,15 +1215,9 @@ public class NetworkServiceV2 extends NdexService {
 				networkDao.unlockNetwork(networkUUID);
 					
 				// update the solr Index
-				NetworkIndexLevel lvl = networkDao.getIndexLevel(networkUUID);
-				if ( lvl != NetworkIndexLevel.NONE) {
-						  networkDao.setFlag(networkUUID, "iscomplete", false);
-						  networkDao.commit();
-						  NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false,null,lvl,false));
-				} else {
-						  networkDao.setFlag(networkUUID, "iscomplete", true);
-						  networkDao.commit();
-				}
+				networkDao.setFlag(networkUUID, "iscomplete", false);
+				networkDao.commit();
+				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,SolrIndexScope.global,false,null));
 			} catch ( SQLException | IOException | IllegalArgumentException |NdexException e ) {
 					networkDao.rollback();
 					try {
@@ -1718,37 +1711,21 @@ public class NetworkServiceV2 extends NdexService {
 						VisibilityType visType = VisibilityType.valueOf((String)parameters.get("visibility"));
 						networkDao.updateNetworkVisibility(networkId, visType, false);
 						if ( !parameters.containsKey("index_level")) {
-							NetworkIndexLevel lvl = networkDao.getIndexLevel(networkId);
-							networkDao.commit();
-							if ( lvl != NetworkIndexLevel.NONE) {
-								NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null,lvl,false));
-							} 
-						}
-					}
-					/*if ( parameters.containsKey("index")) {
-						boolean bv = ((Boolean)parameters.get("index")).booleanValue();
-						networkDao.setFlag(networkId, "solr_indexed",bv);	 
-						if (bv) {
-							networkDao.setFlag(networkId, "iscomplete",false);	 				
 							networkDao.commit();
 							NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null));
-						} else
-							NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteNetwork(networkId, true)); //delete the entry from global idx.
-														
-					}*/
+						}
+					}
 					if ( parameters.containsKey("index_level")) {
-						NetworkIndexLevel lvl = parameters.get("index_level") == null? 
-								NetworkIndexLevel.NONE : 
+						NetworkIndexLevel lvl = parameters.get("index_level") == null?
+								NetworkIndexLevel.NONE :
 								NetworkIndexLevel.valueOf((String)parameters.get("index_level"));
 						networkDao.setIndexLevel(networkId, lvl);
-						VisibilityType visibilityType = networkDao.getNetworkVisibility(networkId);
-						if (lvl !=NetworkIndexLevel.NONE) {
-							networkDao.setFlag(networkId, "iscomplete",false);	 				
-							networkDao.commit();
-							NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null,lvl,true));
-						} else
-							NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteNetwork(networkId, true)); //delete the entry from global idx.
-														
+						// Re-indexed whatever the level: a network's name, description and visibility stay
+						// findable regardless. Setting NONE used to delete the document instead, which no
+						// longer holds now that every other edit to the network re-indexes it.
+						networkDao.setFlag(networkId, "iscomplete",false);
+						networkDao.commit();
+						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null));
 					}
 					if ( parameters.containsKey("showcase")) {
 						boolean bv = ((Boolean)parameters.get("showcase")).booleanValue();
@@ -2048,7 +2025,7 @@ public class NetworkServiceV2 extends NdexService {
 				dao.commit();
 	       }
 	       
-			NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(uuid, SolrIndexScope.individual,true,null, NetworkIndexLevel.NONE,false));
+			NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(uuid, SolrIndexScope.individual,true,null));
 	       			   
 		   URI l = new URI (urlStr);
 

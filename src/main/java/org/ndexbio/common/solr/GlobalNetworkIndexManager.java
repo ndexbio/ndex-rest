@@ -341,17 +341,9 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
     public List<String> addCX2NetworkAttrToIndex(CxNetworkAttribute e)  {
 
         List<String> warnings = new ArrayList<>();
-        /*
-        if ( e.getNetworkName()!= null) {
-            doc.addField(NAME, e.getNetworkName());
-        } else if ( e.getNetworkDescription() !=null ) {
-            doc.addField(DESC, e.getNetworkDescription());
-        } else if ( e.getNetworkVersion() !=null) {
-            doc.addField(VERSION, e.getNetworkVersion());
-        }
 
-         */
-
+        // Name, description and version are not taken from the CX2 aspect: prepareIndexDocument has
+        // already set them from the database row, which is the record a rename updates.
         for ( String otherIndexedName: otherAttributes) {
             if ( e.getAttributes().get(otherIndexedName) !=null) {
                 addStringOrListgObj(e.getAttributes().get(otherIndexedName), otherIndexedName, warnings);

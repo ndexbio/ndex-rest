@@ -6,7 +6,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
-import java.sql.Types;
 import java.util.*;
 import java.util.logging.Logger;
 
@@ -277,7 +276,12 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
 	    if (name != null) {
 	        sb.append(", name=?");
 	    }
-	    sb.append(", parent=?");
+	    // Treated like name: an omitted parent leaves the shortcut where it is. Writing it
+	    // unconditionally meant a request that only changed the name also moved the shortcut to the
+	    // root, out of any shared folder that was granting access to it.
+	    if (parentId != null) {
+	        sb.append(", parent=?");
+	    }
 	    sb.append(" WHERE \"UUID\"=? AND is_deleted=false");
 				
 	    try (PreparedStatement pst = db.prepareStatement(sb.toString())) {
@@ -286,9 +290,7 @@ public class PostgresShortcutDAO extends NdexDBDAO implements ShortcutDAO {
 	        if (name != null) {
 	            pst.setString(idx++, name);
 	        }
-	        if (parentId == null) {
-	        	pst.setNull(idx++, Types.OTHER);
-	        } else {
+	        if (parentId != null) {
 	        	pst.setObject(idx++, parentId);
 	        }
 	        pst.setObject(idx++, shortcutId);
