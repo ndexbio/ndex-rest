@@ -24,10 +24,14 @@ ranges, which is the root of [#199](https://github.com/ndexbio/ndex-rest/issues/
   public ones when that is where its relevance puts it. Public results no longer precede private ones as
   a group: relevance alone decides the order. Previously no client could produce this list — merging two
   responses could only append one to the other, and their scores came from different corpora.
-  - **`visibility=PUBLIC` and `visibility=PRIVATE` return exactly what they returned before.** `PUBLIC`
-  continues to include the caller's own unlisted files, because it narrows on the partition the public
-  core held rather than on the literal field value. `UNLISTED` is still rejected with `400`, and an
-  anonymous `PRIVATE` request is still rejected with `401`.
+  - **`visibility=PUBLIC` and `visibility=PRIVATE` return exactly what they returned before**, and
+  `UNLISTED` is still rejected with `400`. What each request returns:
+    - **omitted** — authenticated: every public file, everything they own, and private files shared
+      with them. Anonymous: every public file.
+    - **`PUBLIC`** — authenticated: every public file, plus their own unlisted ones. Anonymous: every
+      public file.
+    - **`PRIVATE`** — authenticated: their own private files, plus private files shared with them.
+      Anonymous: rejected with `401`.
   - **A search asking for `WRITE` or `ADMIN` without credentials now returns nothing.** A permission on
   a search query asks which files the caller may change, and an anonymous caller may change none, so the
   answer is an empty result set; it previously returned every public file. **This is not a breaking
