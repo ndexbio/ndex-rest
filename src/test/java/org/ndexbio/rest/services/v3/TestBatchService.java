@@ -27,11 +27,14 @@ import org.ndexbio.rest.exceptions.mappers.NdexExceptionMapper;
 import org.ndexbio.rest.exceptions.mappers.UnauthorizedOperationExceptionMapper;
 
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.UUID;
 
 import static org.easymock.EasyMock.*;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 
 /**
@@ -54,6 +57,9 @@ public class TestBatchService {
     private HttpServletRequest mockHttpServletRequest;
     private MockHttpResponse response;
 
+    /** What the endpoint asked to be re-indexed, captured instead of sent to Solr. */
+    private static final List<Reindex> reindexed = new ArrayList<>();
+
     @BeforeClass
     public static void initConfiguration() throws Exception {
         TestConfigHelper.initIfNeeded();
@@ -68,6 +74,7 @@ public class TestBatchService {
         dispatcher.getProviderFactory().registerProvider(NdexExceptionMapper.class);
         dispatcher.getProviderFactory().registerProvider(BadRequestExceptionMapper.class);
         response = new MockHttpResponse();
+        reindexed.clear();
     }
 
     /**
@@ -156,8 +163,37 @@ public class TestBatchService {
     }
 
     /**
-     * Reindexing is a side effect of a successful move; stubbed so tests need no Solr. The terminal
-     * seven-argument overload is the one stubbed, since the shorter overloads delegate to it.
+     * A move re-indexes the network once, and must not ask for a create-only index.
+     *
+     * <p>Search filters networks by the parent recorded on their index document, so the move has to be
+     * written to the index or the network stays findable under the folder it left. {@code createOnly}
+     * false is what also rebuilds the per-network node core; asking for create-only would leave that
+     * core holding the documents it held before the move.</p>
+     */
+    @Test
+    public void testMove_reindexesTheMovedNetworkExactlyOnceAndNotCreateOnly() throws Exception {
+        invokeMove(true, null, true);
+
+        assertEquals("a successful move must enqueue exactly one re-index", 1, reindexed.size());
+        Reindex r = reindexed.get(0);
+        assertEquals(NETWORK, r.fileId());
+        assertEquals(FileType.NETWORK, r.fileType());
+        assertEquals("the move must carry the network's current visibility",
+                VisibilityType.PRIVATE, r.visibility());
+        assertFalse("a move must not request a create-only index", r.createOnly());
+    }
+
+    /** A rejected move must leave the index untouched. */
+    @Test
+    public void testMove_rejectedRequestReindexesNothing() throws Exception {
+        invokeMove(false, Permissions.READ, false);
+        assertEquals("a rejected move must not touch the index", 0, reindexed.size());
+    }
+
+    /**
+     * Reindexing is a side effect of a successful move; captured rather than performed, so tests need no
+     * Solr and can still assert what was enqueued. The terminal seven-argument overload is the one
+     * overridden, since the shorter overloads delegate to it.
      */
     private static class BatchServiceNoIndex extends BatchService {
         BatchServiceNoIndex(HttpServletRequest request) {
@@ -167,7 +203,10 @@ public class TestBatchService {
         @Override
         protected void createFileIndex(UUID fileId, UUID userId, String username, VisibilityType visibility,
                                        FileType fileType, boolean createOnly, boolean ignoreCxFiles) {
-            // no-op for testing
+            reindexed.add(new Reindex(fileId, visibility, fileType, createOnly));
         }
     }
+
+    /** One captured re-index request. */
+    private record Reindex(UUID fileId, VisibilityType visibility, FileType fileType, boolean createOnly) {}
 }

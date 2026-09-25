@@ -166,10 +166,16 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
      * @param includeShortcuts when true, also folds in SHORTCUT docs whose targetType
      * is NETWORK (v3 behavior); when false, returns only NETWORK docs (v2 behavior).
      */
+    /**
+     * Network search across everything the caller may see.
+     *
+     * <p>No visibility narrowing is offered: the v2 endpoint this serves has never exposed such a
+     * parameter. It used to issue two calls — one per core — and concatenate them, which summed
+     * {@code numFound} and paginated each core independently. One call over one core replaces that.</p>
+     */
     public SolrDocumentList searchForNetworks(
             String searchTerms,
             String userAccount,
-            VisibilityType visibilityType,
             int limit,
             int offset,
             String adminedBy,
@@ -177,7 +183,7 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
             boolean includeShortcuts,
             SearchScope scope) throws IOException, SolrServerException, NdexException {
 
-        return searchByType(searchTerms, userAccount, visibilityType, limit, offset,
+        return searchByType(searchTerms, userAccount, null, limit, offset,
                 adminedBy, permission, FileType.NETWORK.toString(), includeShortcuts, scope);
     }
 
@@ -335,17 +341,9 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
     public List<String> addCX2NetworkAttrToIndex(CxNetworkAttribute e)  {
 
         List<String> warnings = new ArrayList<>();
-        /*
-        if ( e.getNetworkName()!= null) {
-            doc.addField(NAME, e.getNetworkName());
-        } else if ( e.getNetworkDescription() !=null ) {
-            doc.addField(DESC, e.getNetworkDescription());
-        } else if ( e.getNetworkVersion() !=null) {
-            doc.addField(VERSION, e.getNetworkVersion());
-        }
 
-         */
-
+        // Name, description and version are not taken from the CX2 aspect: prepareIndexDocument has
+        // already set them from the database row, which is the record a rename updates.
         for ( String otherIndexedName: otherAttributes) {
             if ( e.getAttributes().get(otherIndexedName) !=null) {
                 addStringOrListgObj(e.getAttributes().get(otherIndexedName), otherIndexedName, warnings);

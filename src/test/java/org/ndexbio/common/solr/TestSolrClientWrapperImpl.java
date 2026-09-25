@@ -3,7 +3,6 @@ package org.ndexbio.common.solr;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.LinkedList;
 import org.apache.solr.client.solrj.impl.BaseHttpSolrClient;
 import org.ndexbio.model.exceptions.NdexException;
 import org.apache.solr.client.solrj.SolrClient;
@@ -12,8 +11,6 @@ import org.apache.solr.client.solrj.SolrRequest;
 import org.apache.solr.client.solrj.request.CoreAdminRequest;
 import org.apache.solr.client.solrj.response.CoreAdminResponse;
 import org.apache.solr.client.solrj.response.QueryResponse;
-import org.apache.solr.common.SolrDocument;
-import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
 import org.apache.solr.common.util.NamedList;
 import static org.easymock.EasyMock.createMock;
@@ -23,7 +20,6 @@ import static org.easymock.EasyMock.replay;
 import static org.easymock.EasyMock.verify;
 import org.junit.After;
 import org.junit.Test;
-import org.junit.Ignore;
 import static org.junit.Assert.*;
 import org.junit.Before;
 
@@ -247,54 +243,5 @@ public class TestSolrClientWrapperImpl {
         solrClientWrapper.close();
 		verify(mockFactory, mockSolrClient);
     }
-
-	/**
-	 * Test of methods on a local solr with private-nfs and public-nfs configsets
-	 * @throws Exception 
-	 */
-	@Ignore
-	public void testCreateCoreAndPerformSomeIndexes() throws Exception {
-		SolrObjectFactoryImpl factory = new SolrObjectFactoryImpl("http://localhost:8983/solr", "/opt/ndex");
-		
-		SolrClientWrapperImpl client = new SolrClientWrapperImpl(factory);
-		
-		client.createCoreIfNeeded("private-nfs");
-		client.dropCore("private-nfs");
-		client.createCoreIfNeeded("private-nfs");
-		
-		client.createCoreIfNeeded("public-nfs");
-		client.dropCore("public-nfs");
-		client.createCoreIfNeeded("public-nfs");
-	
-		LinkedList<SolrInputDocument> docs = new LinkedList<>();
-		for (int i = 0 ;i < 500; i++){
-			var doc = new SolrInputDocument();
-			doc.addField("uuid", Integer.toString(i));
-			doc.addField("entityType", "folder");
-			
-		
-			docs.add(doc);
-		}
-		client.commit("private-nfs", docs);
-		client.commit("public-nfs", docs);
-		
-		SolrQuery solrQuery = new SolrQuery("*:*");
-		solrQuery.setRows(100000); // Set a large number for all documents
-		QueryResponse rsp = client.query("private-nfs", solrQuery);
-		SolrDocumentList sdl = rsp.getResults();
-		for(SolrDocument s : sdl){
-			System.out.println(s.toString());
-		}
-		client.delete("private-nfs","0" , true);
-		
-		solrQuery = new SolrQuery("*:*");
-		solrQuery.setRows(100000); // Set a large number for all documents
-		rsp = client.query("private-nfs", solrQuery);
-		sdl = rsp.getResults();
-		for(SolrDocument s : sdl){
-			System.out.println(s.toString());
-		}
-		client.delete("public-nfs","1" , true);
-	}
 
 }

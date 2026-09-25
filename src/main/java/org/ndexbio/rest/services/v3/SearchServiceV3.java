@@ -76,6 +76,8 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.Parameter;
 import org.ndexbio.common.models.search.SearchProvider;
 
@@ -560,31 +562,44 @@ public class SearchServiceV3 extends NdexService  {
 
 			Visibility, start and size are query parameters, documented below.
 
-			Returns 200 on success, or 400 for invalid parameters.
+			An optional `permission` in the request body narrows results to the files the caller
+			holds at least that level on. Omit it, or send READ, for everything they can read; send
+			WRITE or ADMIN for what they can change. An anonymous caller holds no permission on
+			anything, so a WRITE or ADMIN search returns an empty result set.
 			"""
 	)
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "The matching files and the total hit count"),
+			@ApiResponse(responseCode = "400", description = "Invalid parameters, including visibility=UNLISTED"),
+			@ApiResponse(responseCode = "401", description = "visibility=PRIVATE without user credentials")
+	})
 	@Produces("application/json")
 	@Consumes("application/json")
 	public FileSearchResult searchFiles(
 			final SimpleFileQuery query,
-			@Parameter(description = "Data set to search: PUBLIC or PRIVATE (defaults to PUBLIC when "
-					+ "unset). PRIVATE requires authentication with user credentials; an anonymous "
-					+ "PRIVATE request is rejected. UNLISTED is not a valid search mode and is rejected "
-					+ "with 400.")
+			@Parameter(description = "Optional filter narrowing results to one data set: PUBLIC or "
+					+ "PRIVATE. Omit it to search everything the caller may see, returned as one "
+					+ "ranked result set: an authenticated caller gets public files together with "
+					+ "their own private and unlisted files and everything shared with them, "
+					+ "interleaved by relevance rather than grouped by visibility; an anonymous "
+					+ "caller gets public files, which is the whole of their access. PUBLIC returns "
+					+ "public files plus the caller's own unlisted ones. PRIVATE requires "
+					+ "authentication with user credentials; an anonymous PRIVATE request is "
+					+ "rejected. UNLISTED is not a valid search mode and is rejected with 400.")
 			@QueryParam("visibility") VisibilityType visibilityType,
 			@BeanParam PagingParameters paging)
 		throws SQLException, Exception {
 
 		accLogger.info("[data]\t[acc:"+ query.getAccountName() + "]\t[query:" +query.getSearchString() + "]" );
-		if (visibilityType == null){
-			visibilityType = VisibilityType.PUBLIC;
-		}
+		// A null visibility is left null: it means "everything this caller may see", returned as one
+		// ranked result set. It used to default to PUBLIC, which forced a caller wanting both their
+		// public and private files to ask twice and merge two incomparable relevance scales.
 		if (visibilityType == VisibilityType.UNLISTED) {
 			throw new BadRequestException("Invalid 'visibility' value: UNLISTED. Use PUBLIC or PRIVATE.");
 		}
 		User user = getLoggedInUser();
 		//todo allow non logged in user?
-		if (user == null && visibilityType.equals(VisibilityType.PRIVATE)) {
+		if (user == null && visibilityType == VisibilityType.PRIVATE) {
 			throw new UnauthorizedOperationException("You must be logged in to search private files.");
 		}
     	if(query.getAccountName() != null)

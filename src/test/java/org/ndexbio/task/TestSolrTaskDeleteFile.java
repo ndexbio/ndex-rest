@@ -11,7 +11,6 @@ import org.junit.Test;
 import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.TaskType;
-import org.ndexbio.model.object.network.VisibilityType;
 
 /**
  * Covers the persistence round-trip of the single-file Solr delete.
@@ -34,20 +33,21 @@ public class TestSolrTaskDeleteFile {
 
 	@Test
 	public void createTaskPersistsEverythingRunBranchesOn() {
-		Task t = new SolrTaskDeleteFile(FILE_ID, VisibilityType.PRIVATE, false, FileType.FOLDER)
+		Task t = new SolrTaskDeleteFile(FILE_ID, false, FileType.FOLDER)
 				.createTask();
 
 		assertEquals(FILE_ID.toString(), t.getResource());
 		assertEquals(TaskType.SYS_SOLR_DELETE_NETWORK, t.getTaskType());
 		assertEquals(FileType.FOLDER.toString(), t.getAttribute(SolrTaskDeleteFile.fileTypeAttr));
 		assertEquals(Boolean.FALSE, t.getAttribute(SolrTaskDeleteNetwork.globalIdxAttr));
-		assertEquals(VisibilityType.PRIVATE.toString(),
-				t.getAttribute(SolrTaskDeleteFile.visibilityAttr));
+		// No visibility is persisted any more: with one core there is no core to choose, and routing on
+		// replay has always keyed on fileType rather than on visibility.
+		assertNull(t.getAttribute("visibility"));
 	}
 
 	@Test
 	public void aPersistedSingleFileDeleteIsReconstructedAsOne() throws Exception {
-		Task persisted = new SolrTaskDeleteFile(FILE_ID, VisibilityType.PUBLIC, false,
+		Task persisted = new SolrTaskDeleteFile(FILE_ID, false,
 				FileType.NETWORK).createTask();
 
 		NdexSystemTask restored = NdexSystemTask.createSystemTask(persisted);
@@ -60,7 +60,7 @@ public class TestSolrTaskDeleteFile {
 	public void theFileTypeGuardSurvivesARestart() throws Exception {
 		// The whole point of persisting fileType: a folder must still be recognised as a folder after
 		// replay, so its id is never handed to Solr as a per-network core name.
-		Task persisted = new SolrTaskDeleteFile(FILE_ID, VisibilityType.PRIVATE, false,
+		Task persisted = new SolrTaskDeleteFile(FILE_ID, false,
 				FileType.FOLDER).createTask();
 
 		SolrTaskDeleteFile restored = SolrTaskDeleteFile.fromTask(persisted);
@@ -88,14 +88,6 @@ public class TestSolrTaskDeleteFile {
 				restored instanceof SolrTaskDeleteNetwork);
 	}
 
-	@Test
-	public void anUnrecognisedVisibilityDoesNotThrow() {
-		// Reconstruction happens during startup replay, so an unexpected stored value must degrade to
-		// the pre-attribute behaviour rather than take the server down.
-		assertNull(NdexSystemTask.visibilityFromAttribute("NOT_A_VISIBILITY"));
-		assertNull(NdexSystemTask.visibilityFromAttribute(null));
-		assertEquals(VisibilityType.PUBLIC, NdexSystemTask.visibilityFromAttribute("PUBLIC"));
-	}
 
 	@Test
 	public void anUnrecognisedFileTypeFallsBackToNetwork() {

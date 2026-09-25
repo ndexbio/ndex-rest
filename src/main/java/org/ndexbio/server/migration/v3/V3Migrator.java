@@ -273,7 +273,7 @@ public class V3Migrator implements AutoCloseable {
 
 			// drop the old ones.
 			if (!createOnly) {
-				globalNetworkIndexManager.delete(id, visibilityType);
+				globalNetworkIndexManager.delete(id);
 
 			}
 
@@ -358,7 +358,7 @@ public class V3Migrator implements AutoCloseable {
 				}
 			}
 
-			globalNetworkIndexManager.commit(visibilityType);
+			globalNetworkIndexManager.commit();
 
 
 			try {

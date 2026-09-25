@@ -132,8 +132,8 @@ public interface FilePermissionResolver {
 	 * where its authorization comes from. Resolving it per request is what makes a share or a revoke take
 	 * effect on the next search rather than at the next re-index.</p>
 	 *
-	 * <p>Returns {@link SearchScope#EMPTY} for an anonymous user: an anonymous caller reaches nothing on
-	 * the private core, and the public core does not consult a scope at all.</p>
+	 * <p>Returns {@link SearchScope#EMPTY} for an anonymous user: holding no grants, an anonymous caller
+	 * reaches nothing a scope could describe, and the filter admits public documents without one.</p>
 	 *
 	 * @param atLeast resolve at the level about to be searched for — a {@code WRITE} search must not be
 	 *                built from a {@code READ} granted-folder set.

@@ -284,7 +284,7 @@ public abstract class NdexService
 	 * Index or reindex a file (folder, shortcut, or network) in Solr.
 	 * @param fileId       UUID of the file
 	 * @param user         the user performing the action (owner info for indexing)
-	 * @param visibility   visibility type determines which Solr core
+	 * @param visibility   written onto the indexed document as its visibility field
 	 * @param fileType     FOLDER, SHORTCUT, or NETWORK
 	 * @param createOnly   if true, only create (no delete of old record first)
 	 */
@@ -304,16 +304,14 @@ public abstract class NdexService
 		NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildFileIdx(
 				fileId, userId, username, visibility, fileType, createOnly, ignoreCxFiles));
 	}
-	protected void deleteFileIndex(UUID fileId,
-									 VisibilityType visibilityType) throws SQLException, NdexException, IOException {
+	protected void deleteFileIndex(UUID fileId) throws SQLException, NdexException, IOException {
 
-		NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteFile(fileId, visibilityType));
+		NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteFile(fileId));
 	}
-	protected void deleteFileIndex(UUID fileId,
-								   VisibilityType visibilityType, boolean globalIdxOnly,
+	protected void deleteFileIndex(UUID fileId, boolean globalIdxOnly,
 								   FileType fileType) throws SQLException, NdexException, IOException {
 
-		NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteFile(fileId, visibilityType, globalIdxOnly, fileType));
+		NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteFile(fileId, globalIdxOnly, fileType));
 	}
 
 	protected VisibilityType getVisibilityForFile(UUID fileId, FileType fileType) throws Exception {

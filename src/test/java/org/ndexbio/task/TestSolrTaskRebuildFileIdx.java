@@ -101,4 +101,32 @@ public class TestSolrTaskRebuildFileIdx {
 
 		assertTrue(task(false).shouldRecordIndexError(previous));
 	}
+
+	// ── what createOnly governs after the core merge ────────────────────────────
+
+	@Test
+	public void aRebuildDropsThePerNetworkNodeCoreFirst() {
+		// Not an upsert: the node core holds many documents rather than one keyed document, so stale
+		// nodes would survive a rebuild that only re-added.
+		assertTrue(SolrTaskRebuildFileIdx.shouldDropPerNetworkIndex(false, SolrIndexScope.both));
+		assertTrue(SolrTaskRebuildFileIdx.shouldDropPerNetworkIndex(false, SolrIndexScope.individual));
+	}
+
+	@Test
+	public void createOnlyLeavesThePerNetworkNodeCoreAlone() {
+		// createOnly=true is for a file being indexed for the first time, where there is no node core to
+		// drop. Re-indexing an existing network must pass false: the node core is created
+		// unconditionally, so populating one that still exists throws and aborts the whole re-index
+		// before the nfs document is written.
+		assertFalse(SolrTaskRebuildFileIdx.shouldDropPerNetworkIndex(true, SolrIndexScope.both));
+		assertFalse(SolrTaskRebuildFileIdx.shouldDropPerNetworkIndex(true, SolrIndexScope.individual));
+	}
+
+	@Test
+	public void aNetworkBelowTheNodeThresholdHasNoPerNetworkCoreToDrop() {
+		// SolrIndexScope.global means the network never got a node core, so there is nothing to drop
+		// whatever createOnly says.
+		assertFalse(SolrTaskRebuildFileIdx.shouldDropPerNetworkIndex(false, SolrIndexScope.global));
+		assertFalse(SolrTaskRebuildFileIdx.shouldDropPerNetworkIndex(true, SolrIndexScope.global));
+	}
 }

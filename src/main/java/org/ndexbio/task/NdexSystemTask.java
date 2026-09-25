@@ -9,7 +9,6 @@ import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.Status;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.TaskType;
-import org.ndexbio.model.object.network.NetworkIndexLevel;
 import org.ndexbio.model.object.network.VisibilityType;
 
 
@@ -55,15 +54,20 @@ public abstract class NdexSystemTask  {
 				}
 				// Read defensively: a legacy row can be missing globalIdxOnly entirely, and unboxing
 				// a null Boolean into the primitive parameter would throw during startup replay.
+				// A "visibility" attribute on a legacy row is ignored: with one core there is no core to
+				// pick. It was never written by this class in the first place, so reading it always
+				// yielded null — which then reached a delete that dereferenced it.
 				return new SolrTaskDeleteNetwork(UUID.fromString(t.getResource()),
-						!Boolean.FALSE.equals(t.getAttribute(SolrTaskDeleteNetwork.globalIdxAttr)),
-						visibilityFromAttribute(t.getAttribute("visibility")));
+						!Boolean.FALSE.equals(t.getAttribute(SolrTaskDeleteNetwork.globalIdxAttr)));
 			case SYS_SOLR_REBUILD_NETWORK_INDEX:
-				return new SolrTaskRebuildNetworkIdx(UUID.fromString(t.getResource()), SolrIndexScope.valueOf((String)t.getAttribute(SolrTaskRebuildNetworkIdx.AttrScope)), 
+				// A legacy row may still carry "indexLevel" and "fromCX2" attributes. Neither is read any
+				// more: index level never affected this task (it overwrote the value it was handed), and
+				// the CX1/CX2 decision is now taken from the network itself when the task runs, so a
+				// replayed row cannot reindex against the wrong aspect files.
+				return new SolrTaskRebuildNetworkIdx(UUID.fromString(t.getResource()),
+						  SolrIndexScope.valueOf((String)t.getAttribute(SolrTaskRebuildNetworkIdx.AttrScope)),
 						  ((Boolean)t.getAttribute(SolrTaskRebuildNetworkIdx.AttrCreateOnly)).booleanValue(),
-						  (Set<String>)t.getAttribute("fields"), 
-						  NetworkIndexLevel.valueOf((String)t.getAttribute("indexLevel")),
-								  ((Boolean)t.getAttribute(SolrTaskRebuildNetworkIdx.FORMCX2FILE)).booleanValue());
+						  (Set<String>)t.getAttribute("fields"));
 			case SYS_LOAD_NETWORK:
 				return new CXNetworkLoadingTask (UUID.fromString(t.getResource()),
 						(Boolean)t.getAttribute("isUpdate"), 
@@ -80,21 +84,4 @@ public abstract class NdexSystemTask  {
 		}
 	}
 
-	/**
-	 * Reads a persisted visibility attribute, tolerating absent and unrecognised values.
-	 *
-	 * <p>Reconstruction runs during the startup queue replay, so a row carrying an unexpected value
-	 * must not throw - the pre-attribute behaviour was a null visibility, and that is what an
-	 * unusable value falls back to.
-	 */
-	static VisibilityType visibilityFromAttribute(Object attribute) {
-		if (attribute == null) {
-			return null;
-		}
-		try {
-			return VisibilityType.valueOf(attribute.toString());
-		} catch (IllegalArgumentException e) {
-			return null;
-		}
-	}
 }

@@ -368,7 +368,7 @@ public class TestShortcutIndexManager {
         manager.createIndex(shortcut, VisibilityType.PUBLIC);
 
         verify(mockWrapper);
-        assertEquals("public-nfs", coreCapture.getValue());
+        assertEquals(NFSIndexManager.nfsCoreName, coreCapture.getValue());
     }
 
     @Test
@@ -403,7 +403,7 @@ public class TestShortcutIndexManager {
         manager.createIndex(shortcut, VisibilityType.PRIVATE);
 
         verify(mockWrapper);
-        assertEquals("private-nfs", coreCapture.getValue());
+        assertEquals(NFSIndexManager.nfsCoreName, coreCapture.getValue());
     }
 
     // ========================================================================
@@ -411,7 +411,7 @@ public class TestShortcutIndexManager {
     // ========================================================================
 
     @Test
-    public void testDelete_PublicShortcut_DeletesFromPublicCore() throws Exception {
+    public void testDelete_PublicShortcut_RemovesFromTheSingleCore() throws Exception {
         mockWrapper = createMock(SolrClientWrapper.class);
         Capture<String> coreCapture = Capture.newInstance();
         Capture<String> uuidCapture = Capture.newInstance();
@@ -423,30 +423,13 @@ public class TestShortcutIndexManager {
         replay(mockWrapper);
 
         manager = new ShortcutIndexManager(mockWrapper);
-        manager.delete("shortcut-uuid-123", VisibilityType.PUBLIC);
+        manager.delete("shortcut-uuid-123");
 
         verify(mockWrapper);
-        assertEquals("public-nfs", coreCapture.getValue());
+        assertEquals(NFSIndexManager.nfsCoreName, coreCapture.getValue());
         assertEquals("shortcut-uuid-123", uuidCapture.getValue());
     }
 
-    @Test
-    public void testDelete_PrivateShortcut_DeletesFromPrivateCore() throws Exception {
-        mockWrapper = createMock(SolrClientWrapper.class);
-        Capture<String> coreCapture = Capture.newInstance();
-
-        mockWrapper.delete(capture(coreCapture), anyString(), eq(false));
-        expectLastCall().once();
-        mockWrapper.close();
-        expectLastCall().anyTimes();
-        replay(mockWrapper);
-
-        manager = new ShortcutIndexManager(mockWrapper);
-        manager.delete("shortcut-uuid-456", VisibilityType.PRIVATE);
-
-        verify(mockWrapper);
-        assertEquals("private-nfs", coreCapture.getValue());
-    }
 
     // ========================================================================
     // SEARCH - VERIFIES QUERY SENT TO SOLR
@@ -474,7 +457,7 @@ public class TestShortcutIndexManager {
         manager.search("*:*", null, VisibilityType.PUBLIC, 10, 0, null, null, SearchScope.EMPTY);
 
         verify(mockWrapper);
-        assertEquals("public-nfs", coreCapture.getValue());
+        assertEquals(NFSIndexManager.nfsCoreName, coreCapture.getValue());
 
         SolrQuery captured = queryCapture.getValue();
         assertEquals("*:*", captured.getQuery());
@@ -483,7 +466,7 @@ public class TestShortcutIndexManager {
 
         String[] fq = captured.getFilterQueries();
         assertNotNull(fq);
-        assertTrue(fq[0].contains("(*:* NOT visibility:UNLISTED)"));
+        assertTrue(fq[0].contains("(visibility:PUBLIC)"));
         assertFalse(captured.getSorts().isEmpty());
         assertEquals("modificationTime", captured.getSorts().get(0).getItem());
     }
@@ -499,7 +482,7 @@ public class TestShortcutIndexManager {
 
         mockWrapper = createMock(SolrClientWrapper.class);
         Capture<SolrQuery> queryCapture = Capture.newInstance();
-        expect(mockWrapper.query(eq("private-nfs"), capture(queryCapture)))
+        expect(mockWrapper.query(eq(NFSIndexManager.nfsCoreName), capture(queryCapture)))
                 .andReturn(mockResponse);
         mockWrapper.close();
         expectLastCall().anyTimes();
@@ -509,7 +492,9 @@ public class TestShortcutIndexManager {
         manager.search("*:*", null, VisibilityType.PRIVATE, 10, 0, null, null, SearchScope.EMPTY);
 
         String[] fq = queryCapture.getValue().getFilterQueries();
-        assertTrue(fq[0].contains("(*:* AND NOT *:*)"));
+        // The permission arm and the partition are both required: neither alone makes this request empty.
+        assertTrue(fq[0].contains("(visibility:PUBLIC)"));
+        assertTrue(fq[0].contains("(visibility:PRIVATE)"));
     }
 
     @Test
@@ -547,7 +532,7 @@ public class TestShortcutIndexManager {
 
         mockWrapper = createMock(SolrClientWrapper.class);
         Capture<SolrQuery> queryCapture = Capture.newInstance();
-        expect(mockWrapper.query(eq("private-nfs"), capture(queryCapture)))
+        expect(mockWrapper.query(eq(NFSIndexManager.nfsCoreName), capture(queryCapture)))
                 .andReturn(mockResponse);
         mockWrapper.close();
         expectLastCall().anyTimes();
@@ -677,60 +662,12 @@ public class TestShortcutIndexManager {
     // PERMISSION FILTER TESTS (direct method calls)
     // ========================================================================
 
-    @Test
-    public void testBuildPermissionFilter_PublicCore_Anonymous() {
-        manager = createManagerWithMock();
-        assertEquals("(*:* NOT visibility:UNLISTED)", manager.buildPermissionFilter(null, VisibilityType.PUBLIC, null, SearchScope.EMPTY));
-        assertEquals("(*:* NOT visibility:UNLISTED)", manager.buildPermissionFilter(null, VisibilityType.PUBLIC, Permissions.READ, SearchScope.EMPTY));
-    }
 
-    @Test
-    public void testBuildPermissionFilter_PublicCore_AuthenticatedAdmin() {
-        manager = createManagerWithMock();
-        assertEquals("owner:\"admin\"",
-                manager.buildPermissionFilter("admin", VisibilityType.PUBLIC, Permissions.ADMIN, SearchScope.EMPTY));
-    }
 
-    @Test
-    public void testBuildPermissionFilter_PublicCore_AuthenticatedWrite() {
-        manager = createManagerWithMock();
-        String filter = manager.buildPermissionFilter("bob", VisibilityType.PUBLIC, Permissions.WRITE, SearchScope.EMPTY);
-        assertEquals("owner:\"bob\"", filter);
-    }
 
-    @Test
-    public void testBuildPermissionFilter_PrivateCore_Anonymous_MatchesNothing() {
-        manager = createManagerWithMock();
-        assertEquals("(*:* AND NOT *:*)",
-                manager.buildPermissionFilter(null, VisibilityType.PRIVATE, null, SearchScope.EMPTY));
-        assertEquals("(*:* AND NOT *:*)",
-                manager.buildPermissionFilter(null, VisibilityType.PRIVATE, Permissions.READ, SearchScope.EMPTY));
-        assertEquals("(*:* AND NOT *:*)",
-                manager.buildPermissionFilter(null, VisibilityType.PRIVATE, Permissions.WRITE, SearchScope.EMPTY));
-        assertEquals("(*:* AND NOT *:*)",
-                manager.buildPermissionFilter(null, VisibilityType.PRIVATE, Permissions.ADMIN, SearchScope.EMPTY));
-    }
 
-    @Test
-    public void testBuildPermissionFilter_PrivateCore_AuthenticatedRead() {
-        manager = createManagerWithMock();
-        String filter = manager.buildPermissionFilter("jane", VisibilityType.PRIVATE, Permissions.READ, SearchScope.EMPTY);
-        assertEquals("(owner:\"jane\")", filter);
-    }
 
-    @Test
-    public void testBuildPermissionFilter_PrivateCore_AuthenticatedWrite() {
-        manager = createManagerWithMock();
-        String filter = manager.buildPermissionFilter("david", VisibilityType.PRIVATE, Permissions.WRITE, SearchScope.EMPTY);
-        assertEquals("(owner:\"david\")", filter);
-    }
 
-    @Test
-    public void testBuildPermissionFilter_PrivateCore_AuthenticatedAdmin() {
-        manager = createManagerWithMock();
-        assertEquals("owner:\"superadmin\"",
-                manager.buildPermissionFilter("superadmin", VisibilityType.PRIVATE, Permissions.ADMIN, SearchScope.EMPTY));
-    }
 
     // ========================================================================
     // PREPROCESS SEARCH TERMS
@@ -780,12 +717,6 @@ public class TestShortcutIndexManager {
     // CORE NAME MAPPING
     // ========================================================================
 
-    @Test
-    public void testGetCoreNameFromVisibility() {
-        assertEquals("private-nfs", NFSIndexManager.getCoreNameFromVisibility(VisibilityType.PRIVATE));
-        assertEquals("public-nfs", NFSIndexManager.getCoreNameFromVisibility(VisibilityType.PUBLIC));
-        assertEquals("public-nfs", NFSIndexManager.getCoreNameFromVisibility(VisibilityType.UNLISTED));
-    }
 
     // ========================================================================
     // INTEGRATION TESTS (Require local Solr - @Ignore by default)

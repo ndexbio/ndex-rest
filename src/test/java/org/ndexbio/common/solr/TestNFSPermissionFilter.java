@@ -25,10 +25,20 @@ import org.ndexbio.rest.Configuration;
  *
  * <p>Search stores no permission state, so this filter <em>is</em> the authorization decision — there is
  * no later gate to catch a mistake here. These cases pin the parts that are easy to get wrong: which id a
- * document type is reached by, that each clause is pinned to its entity type, and that the public core
- * stays scope-free so UNLISTED items cannot be surfaced by a folder grant.</p>
+ * document type is reached by, that each clause is pinned to its entity type, and the two placements that
+ * a single core makes load-bearing.</p>
+ *
+ * <p>Those two placements used to be enforced by the topology rather than by the expression. With a
+ * {@code public-nfs}/{@code private-nfs} pair, an UNLISTED file was kept from a folder grantee because the
+ * scope clauses only ever ran against a core holding no UNLISTED documents, and an owner found their own
+ * UNLISTED file because the public core's filter admitted everything they owned. One core has to say both
+ * of those out loud, which is what {@link #aFolderGrantDoesNotListSomeoneElsesUnlistedFile()} and
+ * {@link #anOwnerStillFindsTheirOwnUnlistedFiles()} exist to hold.</p>
  */
 public class TestNFSPermissionFilter {
+
+	/** What an empty set of reasons renders as: a clause no document can satisfy. */
+	private static final String MATCHES_NOTHING = "(*:* AND NOT *:*)";
 
 	private static final UUID FOLDER_A = UUID.fromString("11111111-1111-1111-1111-111111111111");
 	private static final UUID FOLDER_B = UUID.fromString("22222222-2222-2222-2222-222222222222");
@@ -61,44 +71,136 @@ public class TestNFSPermissionFilter {
 		return new GlobalNetworkIndexManager(wrapper);
 	}
 
-	private String privateFilter(String user, Permissions permission, SearchScope scope) {
-		return manager().buildPermissionFilter(user, VisibilityType.PRIVATE, permission, scope);
+	private String filter(String user, Permissions permission, SearchScope scope) {
+		return manager().buildPermissionFilter(user, permission, scope);
+	}
+
+	private String partition(VisibilityType visibilityType) {
+		return manager().buildPartitionFilter(visibilityType);
+	}
+
+	// ── the shape of the filter, arm by arm ─────────────────────────────────────
+
+	@Test
+	public void anonymousReachesPublicDocumentsAndNothingElse() {
+		// The positive form matters: the predecessor was "(*:* NOT visibility:UNLISTED)", which was only
+		// ever correct against a core holding nothing but PUBLIC and UNLISTED. Against one core it
+		// matches every PRIVATE document too.
+		assertEquals("visibility:PUBLIC", filter(null, Permissions.READ, SearchScope.EMPTY));
+		assertEquals("visibility:PUBLIC", filter(null, null, SearchScope.EMPTY));
 	}
 
 	@Test
+	public void anonymousReachesNothingPrivateEvenIfAScopeIsSuppliedByMistake() {
+		String f = filter(null, Permissions.READ,
+				new SearchScope(Set.of(FOLDER_A), Set.of(NETWORK_A), Set.of(SHORTCUT_A)));
+		assertEquals("visibility:PUBLIC", f);
+		assertFalse(f, f.contains("{!terms"));
+	}
+
+	@Test
+	public void anAuthenticatedReadReachesPublicDocumentsAndTheirOwn() {
+		assertEquals("(visibility:PUBLIC) OR (owner:\"alice\")",
+				filter("alice", Permissions.READ, SearchScope.EMPTY));
+	}
+
+	@Test
+	public void aWriteSearchDropsThePublicArmBecausePublicVisibilityGrantsNoEdit() {
+		assertEquals("owner:\"bob\"", filter("bob", Permissions.WRITE, SearchScope.EMPTY));
+	}
+
+	@Test
+	public void anAnonymousWriteOrAdminSearchReachesNothing() {
+		// A permission asks what the caller may change. An anonymous caller may change nothing, so every
+		// arm declines and the filter has to match no document. Returning the public arm here would
+		// answer a question about write access with the whole public corpus.
+		assertEquals(MATCHES_NOTHING, filter(null, Permissions.WRITE, SearchScope.EMPTY));
+		assertEquals(MATCHES_NOTHING, filter(null, Permissions.ADMIN, SearchScope.EMPTY));
+	}
+
+	@Test
+	public void anAnonymousWriteSearchIgnoresAnyScopeHandedToIt() {
+		assertEquals(MATCHES_NOTHING,
+				filter(null, Permissions.WRITE,
+						new SearchScope(Set.of(FOLDER_A), Set.of(NETWORK_A), Set.of(SHORTCUT_A))));
+	}
+
+	@Test
+	public void adminIsOwnershipAloneBecauseAFolderGrantNeverConfersIt() {
+		assertEquals("owner:\"alice\"",
+				filter("alice", Permissions.ADMIN,
+						new SearchScope(Set.of(FOLDER_A), Set.of(NETWORK_A), Set.of(SHORTCUT_A))));
+	}
+
+	@Test
+	public void aPermissionThatIsNeitherReadWriteNorAdminReachesOnlyPublicDocuments() {
+		assertEquals("visibility:PUBLIC", filter("alice", Permissions.MEMBER, SearchScope.EMPTY));
+		assertEquals("visibility:PUBLIC", filter("alice", Permissions.GROUPADMIN, SearchScope.EMPTY));
+	}
+
+	// ── the two placements a single core makes load-bearing ─────────────────────
+
+	@Test
+	public void anOwnerStillFindsTheirOwnUnlistedFiles() {
+		// The owner clause is deliberately NOT pinned to a visibility. It has to cover owned PUBLIC,
+		// owned UNLISTED and owned PRIVATE, which is what the old public core's filter did. Pinning it
+		// inside the PRIVATE arm would silently drop the owner's own unlisted files.
+		String f = filter("alice", Permissions.READ, new SearchScope(Set.of(FOLDER_A), Set.of(), Set.of()));
+		int owner = f.indexOf("(owner:\"alice\")");
+		int privateArm = f.indexOf("visibility:PRIVATE");
+		assertTrue(f, owner >= 0);
+		assertTrue("the owner clause must sit outside the PRIVATE arm: " + f, owner < privateArm);
+	}
+
+	@Test
+	public void aFolderGrantDoesNotListSomeoneElsesUnlistedFile() {
+		// A grant changes who can OPEN an item, never whether it is LISTED. Pinning the terms group to
+		// visibility:PRIVATE is the whole of that rule: unpinned, every grantee on an ancestor folder
+		// would see an UNLISTED file sitting in it.
+		String f = filter("alice", Permissions.READ,
+				new SearchScope(Set.of(FOLDER_A), Set.of(NETWORK_A), Set.of(SHORTCUT_A)));
+
+		int pin = f.indexOf("(visibility:PRIVATE) AND (");
+		assertTrue("the terms group must be pinned to PRIVATE: " + f, pin >= 0);
+		// Every terms clause has to sit after the pin. Checking the first occurrence is enough: they are
+		// emitted contiguously, so one escaping the pin would be the earliest.
+		assertTrue("a terms clause escaped the PRIVATE pin: " + f, f.indexOf("{!terms") > pin);
+	}
+
+	// ── what each id set reaches ────────────────────────────────────────────────
+
+	@Test
 	public void ownershipIsTheOnlyReasonWhenNothingIsGranted() {
-		assertEquals("(owner:\"alice\")",
-				privateFilter("alice", Permissions.READ, SearchScope.EMPTY));
+		assertEquals("(visibility:PUBLIC) OR (owner:\"alice\")",
+				filter("alice", Permissions.READ, SearchScope.EMPTY));
 	}
 
 	@Test
 	public void emptySetsEmitNoTermsClauseAtAll() {
-		// An empty terms list is a wasted clause on every query by a user with no grants.
-		String filter = privateFilter("alice", Permissions.READ,
-				new SearchScope(Set.of(), Set.of(), Set.of()));
-		assertFalse(filter, filter.contains("{!terms"));
+		// An empty terms list is a wasted clause on every query by a user with no grants, and
+		// "visibility:PRIVATE AND ()" is a parse error.
+		String f = filter("alice", Permissions.READ, new SearchScope(Set.of(), Set.of(), Set.of()));
+		assertFalse(f, f.contains("{!terms"));
+		assertFalse(f, f.contains("visibility:PRIVATE"));
 	}
 
 	@Test
 	public void aNetworkIsReachedThroughItsParentAndAFolderThroughItsOwnId() {
-		String filter = privateFilter("alice", Permissions.READ,
-				new SearchScope(Set.of(FOLDER_A), Set.of(), Set.of()));
-
 		// The same granted id appears twice, against two different fields — that asymmetry is the whole
 		// point: a network inherits from the folder above it, a folder is granted directly.
-		assertTrue(filter,
-				filter.contains("(entityType:\"NETWORK\" AND {!terms f=parentUuid v='" + FOLDER_A + "'})"));
-		assertTrue(filter,
-				filter.contains("(entityType:\"FOLDER\" AND {!terms f=uuid v='" + FOLDER_A + "'})"));
+		String f = filter("alice", Permissions.READ, new SearchScope(Set.of(FOLDER_A), Set.of(), Set.of()));
+
+		assertTrue(f, f.contains("(entityType:\"NETWORK\") AND ({!terms f=parentUuid v='" + FOLDER_A + "'})"));
+		assertTrue(f, f.contains("(entityType:\"FOLDER\") AND ({!terms f=uuid v='" + FOLDER_A + "'})"));
 	}
 
 	@Test
 	public void everyClauseIsPinnedToAnEntityType() {
 		// Folder and shortcut documents also carry parentUuid. An unpinned parent clause would admit any
 		// shortcut sitting in a granted folder, bypassing the target half of the shortcut conjunction.
-		String filter = privateFilter("alice", Permissions.READ,
+		String f = filter("alice", Permissions.READ,
 				new SearchScope(Set.of(FOLDER_A), Set.of(NETWORK_A), Set.of(SHORTCUT_A)));
-		for (String clause : filter.split(" OR ")) {
+		for (String clause : f.split(" OR ")) {
 			if (clause.contains("{!terms")) {
 				assertTrue("unpinned terms clause: " + clause, clause.contains("entityType:"));
 			}
@@ -107,68 +209,65 @@ public class TestNFSPermissionFilter {
 
 	@Test
 	public void directlyReachableNetworksAreMatchedByTheirOwnId() {
-		String filter = privateFilter("alice", Permissions.READ,
-				new SearchScope(Set.of(), Set.of(NETWORK_A), Set.of()));
-		assertTrue(filter,
-				filter.contains("(entityType:\"NETWORK\" AND {!terms f=uuid v='" + NETWORK_A + "'})"));
+		String f = filter("alice", Permissions.READ, new SearchScope(Set.of(), Set.of(NETWORK_A), Set.of()));
+		assertTrue(f, f.contains("(entityType:\"NETWORK\") AND ({!terms f=uuid v='" + NETWORK_A + "'})"));
 	}
 
 	@Test
 	public void readableShortcutsAreMatchedByTheirOwnId() {
-		String filter = privateFilter("alice", Permissions.READ,
-				new SearchScope(Set.of(), Set.of(), Set.of(SHORTCUT_A)));
-		assertTrue(filter,
-				filter.contains("(entityType:\"SHORTCUT\" AND {!terms f=uuid v='" + SHORTCUT_A + "'})"));
+		String f = filter("alice", Permissions.READ, new SearchScope(Set.of(), Set.of(), Set.of(SHORTCUT_A)));
+		assertTrue(f, f.contains("(entityType:\"SHORTCUT\") AND ({!terms f=uuid v='" + SHORTCUT_A + "'})"));
 	}
 
 	@Test
 	public void everyGrantedIdReachesTheFilter() {
-		String filter = privateFilter("alice", Permissions.READ,
+		String f = filter("alice", Permissions.READ,
 				new SearchScope(Set.of(FOLDER_A, FOLDER_B), Set.of(), Set.of()));
-		assertTrue(filter, filter.contains(FOLDER_A.toString()));
-		assertTrue(filter, filter.contains(FOLDER_B.toString()));
+		assertTrue(f, f.contains(FOLDER_A.toString()));
+		assertTrue(f, f.contains(FOLDER_B.toString()));
 	}
 
 	@Test
 	public void shortcutsTakeNoPartInAWriteSearch() {
 		// Permission cannot be set on a shortcut, and the set is a read-level conjunction.
-		String filter = privateFilter("alice", Permissions.WRITE,
+		String f = filter("alice", Permissions.WRITE,
 				new SearchScope(Set.of(FOLDER_A), Set.of(), Set.of(SHORTCUT_A)));
-		assertFalse(filter, filter.contains(SHORTCUT_A.toString()));
-		assertTrue(filter, filter.contains(FOLDER_A.toString()));
-	}
-
-	@Test
-	public void adminIsOwnershipAloneBecauseAFolderGrantNeverConfersIt() {
-		assertEquals("owner:\"alice\"",
-				privateFilter("alice", Permissions.ADMIN,
-						new SearchScope(Set.of(FOLDER_A), Set.of(NETWORK_A), Set.of(SHORTCUT_A))));
-	}
-
-	@Test
-	public void anonymousReachesNothingOnThePrivateCoreEvenIfAScopeIsSuppliedByMistake() {
-		assertEquals("(*:* AND NOT *:*)",
-				privateFilter(null, Permissions.READ,
-						new SearchScope(Set.of(FOLDER_A), Set.of(NETWORK_A), Set.of(SHORTCUT_A))));
+		assertFalse(f, f.contains(SHORTCUT_A.toString()));
+		assertTrue(f, f.contains(FOLDER_A.toString()));
 	}
 
 	@Test
 	public void aNullScopeIsTreatedAsNoGrantsRatherThanFailing() {
-		assertEquals("(owner:\"alice\")", privateFilter("alice", Permissions.READ, null));
+		assertEquals("(visibility:PUBLIC) OR (owner:\"alice\")",
+				filter("alice", Permissions.READ, null));
 	}
 
 	@Test
-	public void thePublicCoreIgnoresTheScopeSoAnUnlistedFileStaysUnlisted() {
-		// A grant changes who can open an item, never whether it is listed. If a folder clause ever leaks
-		// into the public filter, an UNLISTED file becomes searchable by every grantee on its ancestors.
-		SearchScope wide = new SearchScope(Set.of(FOLDER_A), Set.of(NETWORK_A), Set.of(SHORTCUT_A));
-		String withScope = manager().buildPermissionFilter("alice", VisibilityType.PUBLIC,
-				Permissions.READ, wide);
-		String withoutScope = manager().buildPermissionFilter("alice", VisibilityType.PUBLIC,
-				Permissions.READ, SearchScope.EMPTY);
+	public void noClauseCarriesAStrayOperator() {
+		// Operands are joined rather than appended, so a group can never open on its operator.
+		String f = filter("alice", Permissions.READ, new SearchScope(Set.of(), Set.of(NETWORK_A), Set.of()));
+		assertFalse(f, f.contains("( OR "));
+		assertFalse(f, f.contains("( AND "));
+		assertFalse(f, f.contains(" OR )"));
+	}
 
-		assertEquals(withoutScope, withScope);
-		assertFalse(withScope, withScope.contains("{!terms"));
-		assertTrue(withScope, withScope.contains("NOT visibility:UNLISTED"));
+	// ── the narrowing filter, which is a separate expression ────────────────────
+
+	@Test
+	public void omittingVisibilityNarrowsNothing() {
+		assertEquals("", partition(null));
+	}
+
+	@Test
+	public void publicNarrowsOnTheOldPublicCorePartitionRatherThanTheLiteralValue() {
+		// visibility=PUBLIC selected the public-nfs CORE, which physically held PUBLIC and UNLISTED
+		// documents alike. Narrowing on the literal field value instead drops the caller's own unlisted
+		// files, which that core always returned to them.
+		assertEquals(" AND (visibility:(PUBLIC OR UNLISTED))", partition(VisibilityType.PUBLIC));
+	}
+
+	@Test
+	public void privateNarrowsOnPrivateWherePartitionAndFieldValueCoincide() {
+		assertEquals(" AND (visibility:PRIVATE)", partition(VisibilityType.PRIVATE));
 	}
 }

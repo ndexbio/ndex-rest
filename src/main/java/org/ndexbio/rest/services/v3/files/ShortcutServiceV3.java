@@ -183,7 +183,7 @@ public class ShortcutServiceV3 extends NdexService {
 
 			dao.deleteShortcut(shortcutId, permanent);
 			dao.commit();
-			deleteFileIndex(shortcutId, visibilityType);
+			deleteFileIndex(shortcutId);
 
 		}
 	}
@@ -195,7 +195,8 @@ public class ShortcutServiceV3 extends NdexService {
 	@Operation(
 			summary = "Rename or move a Shortcut",
 			description = """
-                          Updates the shortcut's name or parent folder.
+                          Updates the shortcut's name or parent folder. Each is optional and independent:
+                          a field the request omits is left as it is, so renaming a shortcut does not move it.
                           
                           Database Tables:
                           - shortcut: Updates name and/or parent folder

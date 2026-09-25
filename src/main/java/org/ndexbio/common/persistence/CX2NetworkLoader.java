@@ -73,7 +73,6 @@ import org.ndexbio.cxio.metadata.MetaDataCollection;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
-import org.ndexbio.model.object.network.NetworkIndexLevel;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
@@ -243,7 +242,6 @@ public class CX2NetworkLoader implements AutoCloseable {
 					throw new NdexException ("DB error when setting unlock flag: " + e.getMessage(), e);
 				}
 
-				NetworkIndexLevel indexLevel = NetworkIndexLevel.ALL;
 				boolean needIndividualIndex = this.nodeIdTracker.getDefinedElementSize() >= SingleNetworkSolrIdxManager.AUTOCREATE_THRESHHOLD;
 				
 				// clear individual index
@@ -251,9 +249,9 @@ public class CX2NetworkLoader implements AutoCloseable {
 					idx2.dropIndex();
 				}
 				if (needIndividualIndex)
-					NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.both,!isUpdate,indexedFields, indexLevel , true ));
+					NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.both,!isUpdate,indexedFields));
 				else
-					NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,!isUpdate,indexedFields, indexLevel , true ));
+					NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,!isUpdate,indexedFields));
 			  //dao.setFlag(this.networkId, "iscomplete", true);
 			  //dao.commit();
 
@@ -261,14 +259,14 @@ public class CX2NetworkLoader implements AutoCloseable {
 
 				if ( isUpdate)  {
 				   if ( needIndividualIndex)
-					  NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.both,false,indexedFields, indexLevel , true ));
+					  NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.both,false,indexedFields));
 				   else 
-				      NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,indexedFields, indexLevel, true ));
+				      NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,indexedFields));
 				} else {
 					if (needIndividualIndex)
-						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.both,!isUpdate, indexedFields, NetworkIndexLevel.ALL, true));
+						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.both,!isUpdate, indexedFields));
 					else {
-						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,!isUpdate, indexedFields, NetworkIndexLevel.ALL, true));
+						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,!isUpdate, indexedFields));
 						//logger.info("SKIPPED {}", isUpdate);
 						dao.setFlag(this.networkId, "iscomplete", true);
 						dao.commit();

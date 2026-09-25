@@ -100,7 +100,7 @@ public class NetworkSetServiceV2 extends NdexService {
 		UUID setId = NdexUUIDFactory.INSTANCE.createNewNDExUUID();
 		networkSetService().createSet(setId, getLoggedInUserId(), newNetworkSet.getName(),
 				newNetworkSet.getDescription());
-		// createFolder always inserts PRIVATE, so index into the private core.
+		// createFolder always inserts PRIVATE, so that is what the document records.
 		createFileIndex(setId, getLoggedInUser(), VisibilityType.PRIVATE, FileType.FOLDER, true);
 
 		try {
@@ -142,8 +142,8 @@ public class NetworkSetServiceV2 extends NdexService {
 		UpsertOutcome outcome = networkSetService().upsertSet(setId, getLoggedInUserId(),
 				newNetworkSet.getName(), newNetworkSet.getDescription());
 
-		// On an update, createOnly=false drops the stale doc from both cores first, or the old name keeps
-		// matching in search. On a create there is nothing to drop.
+		// createOnly=false on an update so the per-network node core is rebuilt too. The nfs document
+		// itself is keyed on uuid and replaced by the write, so the old name stops matching either way.
 		createFileIndex(setId, getLoggedInUser(), outcome.visibility(), FileType.FOLDER, outcome.created());
 	}
 
@@ -263,8 +263,8 @@ public class NetworkSetServiceV2 extends NdexService {
 
 		RemovedMembers removed = service.removeMembers(setId, getLoggedInUserId(), networkIds);
 
-		// Deleted shortcuts must lose their index docs. One batch task covers them all, and it clears
-		// both cores per id, which also spares us looking up a visibility whose row is already gone.
+		// Deleted shortcuts must lose their index docs. One batch task covers them all, deleting by id,
+		// which spares us looking up a visibility whose row is already gone.
 		// Neither list is reported to the client — this endpoint stays a 204.
 		if (!removed.deletedShortcutIds().isEmpty()) {
 			NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskDeleteFiles(setId,

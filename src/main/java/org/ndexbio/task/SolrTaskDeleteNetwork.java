@@ -9,7 +9,6 @@ import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.TaskType;
-import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
 
 public class SolrTaskDeleteNetwork extends NdexSystemTask {
@@ -20,18 +19,15 @@ public class SolrTaskDeleteNetwork extends NdexSystemTask {
     private static final TaskType taskType = TaskType.SYS_SOLR_DELETE_NETWORK;
     private boolean globalIdxOnly;
     public final static String globalIdxAttr = "globalIdxOnly";
-	private final VisibilityType visibilityType;
-	
+
 	public SolrTaskDeleteNetwork (UUID networkUUID) {
-		this(networkUUID, false, VisibilityType.PRIVATE);
+		this(networkUUID, false);
 	}
-	
-	public SolrTaskDeleteNetwork (UUID networkUUID, boolean globalOnly, VisibilityType visibilityType) {
+
+	public SolrTaskDeleteNetwork (UUID networkUUID, boolean globalOnly) {
 		super();
 		this.networkId = networkUUID;
 		this.globalIdxOnly = globalOnly;
-		this.visibilityType = visibilityType;
-
 	}
 	
 	@Override
@@ -39,7 +35,7 @@ public class SolrTaskDeleteNetwork extends NdexSystemTask {
 		String id = networkId.toString();
 		
 		try(GlobalNetworkIndexManager globalIdx = Configuration.getInstance().getSolrObjectFactory().getGlobalNetworkIndexManager()) {
-			globalIdx.delete(id, visibilityType);
+			globalIdx.delete(id);
 			if (!globalIdxOnly) {
 				try (SingleNetworkSolrIdxManager idxManager = Configuration.getInstance().getSolrObjectFactory().getSingleNetworkSolrIdxManager(id)) {
 					idxManager.dropIndex();
