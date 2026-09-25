@@ -99,14 +99,9 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 
 	private void rebuildFolderIndex(String id) throws Exception {
 		try (FolderDAO dao = Configuration.getInstance().getDAOFactory().getFolderDAO()) {
-			if (!createOnly){
-				try (FolderIndexManager folderIdxManager = solrObjectFactory.getFolderIndexManager()) {
-					folderIdxManager.delete(id, VisibilityType.PRIVATE);
-					folderIdxManager.delete(id, VisibilityType.PUBLIC);
-
-				}
-
-			}
+			// No delete first: createIndex writes the document keyed on uuid, and Solr's update handler
+			// replaces any existing document with that key. The delete pair here only ever existed to
+			// clear the copy sitting in the other core.
 			String accessKey = dao.getFolderAccessKey(fileId);
 			NdexFolder folder = dao.getFolder(fileId, userId, accessKey );
 			checkRecordExists(folder);
@@ -120,14 +115,7 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
     }
 	private void rebuildShortcutIndex(String id) throws Exception {
 		try (ShortcutDAO dao = Configuration.getInstance().getDAOFactory().getShortcutDAO()) {
-			if (!createOnly){
-				try (ShortcutIndexManager shortcutIndexManager = Configuration.getInstance()
-						.getSolrObjectFactory().getShortcutIndexManager()) {
-					shortcutIndexManager.delete(id, VisibilityType.PRIVATE);
-					shortcutIndexManager.delete(id, VisibilityType.PUBLIC);
-
-				}
-			}
+			// Upsert on uuid — see rebuildFolderIndex.
 			NdexShortcut shortcut = dao.getShortcut(fileId, userId);
 			checkRecordExists(shortcut);
 			shortcut.setOwner(username);
@@ -135,6 +123,28 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 				globalIdx.createIndex(shortcut, visibilityType);
 			}
 		}
+	}
+
+	/**
+	 * Whether this rebuild must drop the per-network node core before repopulating it.
+	 *
+	 * <p><b>This is all {@code createOnly} still governs.</b> It used to gate a delete of the nfs
+	 * document as well, because that document had to be removed from whichever of the two cores it was
+	 * leaving. With one core there is nothing to leave: the document is keyed on its uuid, and Solr's
+	 * update handler replaces any existing document with that key, so re-indexing is already an upsert.</p>
+	 *
+	 * <p>The per-network node core is different in kind — a whole core of node documents rather than one
+	 * keyed document — so upsert does not cover it and stale nodes would survive a rebuild. It only
+	 * exists for networks at or above {@link SingleNetworkSolrIdxManager#AUTOCREATE_THRESHHOLD} nodes,
+	 * which is what {@code idxScope} carries.</p>
+	 *
+	 * <p><b>A caller that re-indexes an existing network must pass {@code createOnly=false}.</b>
+	 * {@link SingleNetworkSolrIdxManager#createIndexFromCx2} creates its core unconditionally, so
+	 * populating one that still exists throws and aborts the whole re-index before the nfs document is
+	 * written. {@code createOnly=true} is for a file being indexed for the first time.</p>
+	 */
+	static boolean shouldDropPerNetworkIndex(boolean createOnly, SolrIndexScope idxScope) {
+		return !createOnly && idxScope != SolrIndexScope.global;
 	}
 
 	private void rebuildNetworkIndex(String id) throws Exception {
@@ -151,17 +161,10 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 			else
 				idxScope = SolrIndexScope.global;
 
-			// drop the old ones.
-			if (!createOnly) {
-				try (GlobalNetworkIndexManager globalIdx = solrObjectFactory.getGlobalNetworkIndexManager()) {
-					globalIdx.delete(id, VisibilityType.PRIVATE);
-					globalIdx.delete(id, VisibilityType.PUBLIC);
-
+			if (shouldDropPerNetworkIndex(createOnly, idxScope)) {
+				try (SingleNetworkSolrIdxManager idx2 = solrObjectFactory.getSingleNetworkSolrIdxManager(id)) {
+					idx2.dropIndex();
 				}
-				if (idxScope != SolrIndexScope.global)
-					try (SingleNetworkSolrIdxManager idx2 = solrObjectFactory.getSingleNetworkSolrIdxManager(id)) {
-						idx2.dropIndex();
-					}
 			}
 
 			if (idxScope != SolrIndexScope.global) {
@@ -256,7 +259,7 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
                     }
                 }
 
-                globalIdx.commit(visibilityType);
+                globalIdx.commit();
             }
 
             try {

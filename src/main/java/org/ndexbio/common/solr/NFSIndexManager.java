@@ -36,8 +36,16 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
     protected final Logger logger = LoggerFactory.getLogger(this.getClass().getSimpleName());
 
 
-    public static final String privateCoreName = "private-nfs";
-    public static final String publicCoreName = "public-nfs";
+    /**
+     * The single core holding every folder, shortcut and network document, whatever its visibility.
+     *
+     * <p>This replaced a {@code public-nfs}/{@code private-nfs} pair. The split made a correct ranked
+     * result set impossible: each core computed relevance from its own corpus statistics, so scores from
+     * one were never comparable with scores from the other, and a caller wanting both had to query twice
+     * and sort the union of two unrelated number ranges. Visibility is now a field on the document and a
+     * clause in the filter — see {@link #buildPermissionFilter} and {@link #buildPartitionFilter}.</p>
+     */
+    public static final String nfsCoreName = "ndex-nfs";
 
     protected final SolrClientWrapper solrClientWrapper;
     protected final String solrUrl ;
@@ -66,8 +74,6 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
     public static final String CREATION_TIME = "creationTime";
     public static final String NDEX_SCORE = "ndexScore";
 
-    /** A filter that matches no document, used where a caller is entitled to nothing. */
-    protected static final String MATCH_NOTHING = "(*:* AND NOT *:*)";
     protected static final int DEFAULT_MAX_SEARCH_RESULTS = 100000;
 
     private final int max_search_results;
@@ -115,8 +121,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
      * @throws NdexException
      */
     public void createCoreIfNeeded() throws SolrServerException, IOException, NdexException {
-        solrClientWrapper.createCoreIfNeeded(privateCoreName);
-        solrClientWrapper.createCoreIfNeeded(publicCoreName);
+        solrClientWrapper.createCoreIfNeeded(nfsCoreName);
     }
 
     /**
@@ -126,7 +131,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
     public void createIndex(T inputData, VisibilityType visibilityType){
         prepareIndexDocument(inputData, visibilityType);
         try {
-            commit(visibilityType);
+            commit();
         } catch(SolrServerException sse){
             logger.error("Unable to commit document: " + sse.getMessage(), sse);
             //throw new RuntimeException("Failed to commit to Solr", sse); // ADD THIS
@@ -136,10 +141,8 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
         }
     }
 
-    public void commit(VisibilityType visibilityType) throws SolrServerException, IOException {
-        String coreName = getCoreNameFromVisibility(visibilityType);
-        commit(coreName);
-
+    public void commit() throws SolrServerException, IOException {
+        commit(nfsCoreName);
     }
     public void commit(String coreName) throws SolrServerException, IOException {
         if ( !doc.isEmpty()) {
@@ -160,10 +163,9 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
         doc = new SolrInputDocument();
         postCommit();
     }
-    public void delete(String uuid, VisibilityType visibilityType) throws SolrServerException, IOException {
+    public void delete(String uuid) throws SolrServerException, IOException {
 
-        solrClientWrapper.delete(getCoreNameFromVisibility(visibilityType),
-                uuid, false);
+        solrClientWrapper.delete(nfsCoreName, uuid, false);
     }
 
 
@@ -184,8 +186,10 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
      * @param offset Starting position for pagination
      * @param ownedBy Filter by owner username (null for no filter)
      * @param permission Filter by permission level (null for all accessible items)
+     * @param visibilityType Optional narrowing to one visibility partition; null searches everything the
+     *                       caller may see. See {@link #buildPartitionFilter}.
      * @param scope Folder-propagation reach resolved for this request; {@link SearchScope#EMPTY} when the
-     *              caller is anonymous or holds no grants. Consulted on the private core only.
+     *              caller is anonymous or holds no grants.
      * @return SolrDocumentList containing matching documents
      */
     public SolrDocumentList search(
@@ -201,28 +205,28 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
         SolrQuery solrQuery = new SolrQuery();
 
         // Build the permission filter
-        String permissionFilter = buildPermissionFilter(userAccount, visibilityType, permission, scope);
+        String permissionFilter = buildPermissionFilter(userAccount, permission, scope);
 
         // Build the owner filter
         String ownerFilter = "";
         if (ownedBy != null) {
-            ownerFilter = " AND (" + USER_ADMIN + ":\"" + escapeForFilter(ownedBy) + "\")";
+            ownerFilter = " AND " + SolrClause.phrase(USER_ADMIN, ownedBy).asFilterQuery();
         }
 
         // Combine filters
-        String resultFilter = "(" + permissionFilter + ")" + ownerFilter;
+        String resultFilter = "(" + permissionFilter + ")" + ownerFilter
+                + buildPartitionFilter(visibilityType);
 
         // Set up the query
         configureQuery(solrQuery, searchTerms, resultFilter, limit, offset);
-        String coreName = getCoreNameFromVisibility(visibilityType);
         //logger.info("QUERY {} FILTER {}", solrQuery.toQueryString(), solrQuery.getFilterQueries());
 
         // Execute search
         try {
-            QueryResponse rsp = solrClientWrapper.query(coreName, solrQuery);
+            QueryResponse rsp = solrClientWrapper.query(nfsCoreName, solrQuery);
             return rsp.getResults();
         } catch (BaseHttpSolrClient.RemoteSolrException e) {
-            throw convertException(e, coreName);
+            throw convertException(e, nfsCoreName);
         }
         catch (Exception e){
             throw new NdexException("Error accessing Solr: " + e.getMessage());
@@ -260,159 +264,141 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
         }
 
         SolrQuery solrQuery = new SolrQuery();
-        String permissionFilter = buildPermissionFilter(userAccount, visibilityType, permission, scope);
-        String ownerFilter = ownedBy != null ? " AND (" + USER_ADMIN + ":\"" + escapeForFilter(ownedBy) + "\")" : "";
-        String resultFilter = "(" + permissionFilter + ")" + ownerFilter + typeFilter;
+        String permissionFilter = buildPermissionFilter(userAccount, permission, scope);
+        String ownerFilter = ownedBy != null
+                ? " AND " + SolrClause.phrase(USER_ADMIN, ownedBy).asFilterQuery() : "";
+        String resultFilter = "(" + permissionFilter + ")" + ownerFilter + typeFilter
+                + buildPartitionFilter(visibilityType);
 
         configureQuery(solrQuery, searchTerms, resultFilter, limit, offset);
-        String coreName = getCoreNameFromVisibility(visibilityType);
         //logger.info("QUERY {} FILTER {}", solrQuery.toQueryString(), solrQuery.getFilterQueries());
 
         try {
-            QueryResponse rsp = solrClientWrapper.query(coreName, solrQuery);
+            QueryResponse rsp = solrClientWrapper.query(nfsCoreName, solrQuery);
             return rsp.getResults();
         } catch (BaseHttpSolrClient.RemoteSolrException e) {
-            throw convertException(e, coreName);
+            throw convertException(e, nfsCoreName);
         } catch (Exception e) {
             throw new NdexException("Error accessing Solr: " + e.getMessage());
         }
     }
 
     /**
-     * Builds the Solr filter query for permissions based on user and visibility
+     * Every reason this caller may see a document, OR-ed together.
+     *
+     * <p>Effective permission is the most permissive of everything that applies, so each rule only
+     * adds documents; none subtracts. No permission state is read from the index — the reachable ids
+     * arrive in {@code scope}, resolved from the database for this request, so a share or a revoke
+     * takes effect on the very next search.</p>
      */
-    protected String buildPermissionFilter(String userAccount, VisibilityType visibilityType,
-                                           Permissions permission, SearchScope scope) {
-        // For PUBLIC cores
-        if (visibilityType.equals(VisibilityType.PUBLIC)) {
-            // Deliberately scope-free: see buildPublicCorePermissionFilter.
-            return buildPublicCorePermissionFilter(userAccount, permission);
-        }
-        // For PRIVATE/UNLISTED core
-        else {
-            return buildPrivateCorePermissionFilter(userAccount, permission, scope);
-        }
+    protected String buildPermissionFilter(String userAccount, Permissions permission, SearchScope scope) {
+        SolrClause.Builder reasons = new SolrClause.Builder();
+        reasons.add(publicDocumentsAnyoneMaySee(permission));
+        reasons.add(documentsThisCallerOwns(userAccount, permission));
+        reasons.add(privateDocumentsGrantedToThisCaller(userAccount, permission, scope));
+        return SolrClause.anyOf(reasons.clauses()).toString();
     }
 
     /**
-     * Permission filter for public-nfs core (PUBLIC and UNLISTED items).
-     * Anonymous users see all public (non-unlisted) items.
-     * Authenticated users additionally see unlisted items they own for READ,
-     * and are filtered to owned/editable items for WRITE/ADMIN.
+     * Public documents, which every caller may see.
      *
-     * <p><b>No {@link SearchScope} is accepted here, and none may be added.</b> The specification says an
-     * UNLISTED file is "only searchable by the owner", and that is a listing rule rather than an access
-     * rule: a grant changes who can <em>open</em> an item, never whether it is <em>listed</em>. OR-ing a
-     * folder-propagation clause into this filter would surface UNLISTED items to anyone holding a grant on
-     * an ancestor folder — exactly the leak the owner-only test exists to prevent.</p>
+     * <p>Stated positively. The negative form — everything that is not unlisted — would also match
+     * every private document, since one core now holds them all.</p>
+     *
+     * <p>Withheld from a WRITE or ADMIN search: those ask what the caller may change, and public
+     * visibility grants no one the right to change anything. That holds for an anonymous caller most of
+     * all — holding no permission on anything, the honest answer to what they may change is nothing, so
+     * every arm declines and the filter matches no document.</p>
      */
-    protected String buildPublicCorePermissionFilter(String userAccount, Permissions permission) {
-        String excludeUnlisted = "(*:* NOT " + VISIBILITY + ":UNLISTED)";
-
-        if (userAccount == null) {
-            return excludeUnlisted;
+    private SolrClause publicDocumentsAnyoneMaySee(Permissions permission) {
+        boolean asksWhatMayBeChanged = permission == Permissions.WRITE || permission == Permissions.ADMIN;
+        if (asksWhatMayBeChanged) {
+            return null;
         }
+        return SolrClause.term(VISIBILITY, VisibilityType.PUBLIC);
+    }
 
-        String userAccountStr = "\"" + escapeForFilter(userAccount) + "\"";
+    /**
+     * Documents this caller owns, whatever their visibility.
+     *
+     * <p>Deliberately carries no visibility term. An owner has always been able to find their own
+     * unlisted files, so restricting this to one visibility would take them away.</p>
+     */
+    private SolrClause documentsThisCallerOwns(String userAccount, Permissions permission) {
+        if (userAccount == null || !grantsAccessToOwnedFiles(permission)) {
+            return null;
+        }
+        return SolrClause.phrase(USER_ADMIN, userAccount);
+    }
 
+    /**
+     * Private documents this caller reaches through a grant.
+     *
+     * <p>Pinned to private visibility. A grant decides who may open a file, never whether it is
+     * listed, so an unlisted file stays unlisted for a grantee on any folder above it.</p>
+     */
+    private SolrClause privateDocumentsGrantedToThisCaller(String userAccount, Permissions permission,
+                                                           SearchScope scope) {
+        if (userAccount == null || !grantsPropagateThroughFolders(permission)) {
+            return null;
+        }
+        SolrClause reachable = documentsReachableThroughGrants(permission, scope);
+        if (reachable == null) {
+            return null;
+        }
+        return SolrClause.allOf(SolrClause.term(VISIBILITY, VisibilityType.PRIVATE), reachable);
+    }
+
+    /** READ and WRITE act on owned files; so does an unspecified permission. ADMIN is ownership itself. */
+    private boolean grantsAccessToOwnedFiles(Permissions permission) {
+        return permission == null || permission == Permissions.READ
+                || permission == Permissions.WRITE || permission == Permissions.ADMIN;
+    }
+
+    /** A folder grant confers read or write, never ownership, so ADMIN looks past it. */
+    private boolean grantsPropagateThroughFolders(Permissions permission) {
+        return permission == null || permission == Permissions.READ || permission == Permissions.WRITE;
+    }
+
+    /**
+     * Everything {@code scope} reaches, or null when it reaches nothing.
+     *
+     * <p>Each clause names the type it applies to, because a network is reached through its parent's
+     * id while a folder is reached through its own — and folder and shortcut documents carry a
+     * parent id too, so an unnamed clause would admit a shortcut sitting in a granted folder and skip
+     * the check on what that shortcut points at.</p>
+     */
+    private SolrClause documentsReachableThroughGrants(Permissions permission, SearchScope scope) {
+        SearchScope reach = scope == null ? SearchScope.EMPTY : scope;
+        SolrClause.Builder reachable = new SolrClause.Builder();
+
+        reachable.add(documentsOfType(FileType.NETWORK, PARENT_UUID, reach.grantedFolderIds()));
+        reachable.add(documentsOfType(FileType.FOLDER, UUID, reach.grantedFolderIds()));
+        reachable.add(documentsOfType(FileType.NETWORK, UUID, reach.reachableNetworkIds()));
+
+        // Permission cannot be set on a shortcut, so a write search has nothing to say about one. The
+        // readable set is a read-level conjunction and would over-admit if reused here.
         if (permission == null || permission == Permissions.READ) {
-            return excludeUnlisted + " OR (" + USER_ADMIN + ":" + userAccountStr + ")";
-        } else if (permission == Permissions.WRITE) {
-            // Ownership only. The former {@code userEdit} arm was written exclusively onto PRIVATE and
-            // UNLISTED documents, so on this core its sole effect was to surface UNLISTED files to
-            // non-owner editors — the one thing "only searchable by the owner" forbids. Dropping it costs
-            // no legitimate result: a genuinely PUBLIC document never carried the field.
-            return USER_ADMIN + ":" + userAccountStr;
-        } else if (permission == Permissions.ADMIN) {
-            return USER_ADMIN + ":" + userAccountStr;
+            reachable.add(documentsOfType(FileType.SHORTCUT, UUID, reach.readableShortcutIds()));
         }
 
-        return excludeUnlisted;
-    }
-    /**
-     * Permission filter for private-nfs core (PRIVATE items).
-     *
-     * <p>Anonymous users see nothing. For everyone else the filter is a union of independent reasons a
-     * document may be visible — ownership, folder propagation, and a direct grant — because effective
-     * permission is the <em>most permissive</em> of everything that applies. Nothing here subtracts.</p>
-     *
-     * <p>No permission state is read from the index. The reachable ids arrive in {@code scope}, resolved
-     * from the database for this request, so a share or a revoke takes effect on the very next search.</p>
-     *
-     * <p><b>The clause differs by document type</b>, and conflating them is the easy mistake: a network is
-     * reached through its <em>parent's</em> id, a folder through its <em>own</em>. Each clause is pinned to
-     * an {@code entityType} for that reason — folder and shortcut documents also carry {@code parentUuid},
-     * so an unpinned parent clause would admit any shortcut sitting in a granted folder and quietly bypass
-     * the target-reachability half of the shortcut conjunction.</p>
-     */
-    protected String buildPrivateCorePermissionFilter(String userAccount, Permissions permission,
-                                                      SearchScope scope) {
-        if (userAccount == null) {
-            // Anonymous users cannot see private items
-            return MATCH_NOTHING;
-        }
-
-        String userAccountStr = "\"" + escapeForFilter(userAccount) + "\"";
-
-        // A folder grant never confers ownership, so ADMIN is ownership alone and ignores the scope.
-        if (permission == Permissions.ADMIN) {
-            return USER_ADMIN + ":" + userAccountStr;
-        }
-        if (permission != null && permission != Permissions.READ && permission != Permissions.WRITE) {
-            return MATCH_NOTHING;
-        }
-
-        if (scope == null) {
-            scope = SearchScope.EMPTY;
-        }
-
-        StringBuilder filter = new StringBuilder();
-        filter.append("(").append(USER_ADMIN).append(":").append(userAccountStr).append(")");
-
-        // A network inherits from the folder it sits in; the granted set already includes descendants.
-        appendTermsClause(filter, FileType.NETWORK, PARENT_UUID, scope.grantedFolderIds());
-        // A folder is reached by its own id.
-        appendTermsClause(filter, FileType.FOLDER, UUID, scope.grantedFolderIds());
-        // Networks with no granted folder above them: a direct grant, or a same-owner shortcut reference.
-        appendTermsClause(filter, FileType.NETWORK, UUID, scope.reachableNetworkIds());
-
-        // Shortcuts are read-only aliases — permission cannot be set on one — so they take no part in a
-        // WRITE search. The set is a read-level conjunction and would over-admit if reused here.
-        if (permission == null || permission == Permissions.READ) {
-            appendTermsClause(filter, FileType.SHORTCUT, UUID, scope.readableShortcutIds());
-        }
-
-        return filter.toString();
+        return reachable.isEmpty() ? null : SolrClause.anyOf(reachable.clauses());
     }
 
-    /**
-     * ORs {@code (entityType:TYPE AND {!terms f=field v='id,id,…'})} onto {@code filter}, or appends
-     * nothing when {@code ids} is empty.
-     *
-     * <p>{@code {!terms}} is used rather than a chain of ORs because it is not subject to
-     * {@code maxBooleanClauses}, so a user holding a very large subtree cannot make the query fail. It is
-     * embedded with an inline {@code v=} local param, which is how the standard parser accepts a nested
-     * query inside a boolean expression. No {@code method} is specified: the default works against
-     * {@code indexed="true"} fields, and the alternatives that would need {@code docValues} would force a
-     * schema change on existing deployments.</p>
-     *
-     * <p>The empty case must skip the clause entirely — an empty terms list matches nothing, which as one
-     * arm of an OR is merely useless, but it is a wasted clause on every anonymous-adjacent query.</p>
-     *
-     * <p>Values are {@link java.util.UUID} rendered to text, so they cannot contain a separator or a
-     * quote; no escaping is required and none is performed.</p>
-     */
-    private void appendTermsClause(StringBuilder filter, FileType entityType, String field,
-                                   Set<java.util.UUID> ids) {
+    /** Documents of one type whose {@code field} is in {@code ids}, or null when there are none. */
+    private SolrClause documentsOfType(FileType entityType, String field, Set<java.util.UUID> ids) {
         if (ids == null || ids.isEmpty()) {
-            return;
+            return null;
         }
-        StringJoiner values = new StringJoiner(",");
-        for (java.util.UUID id : ids) {
-            values.add(id.toString());
-        }
-        filter.append(" OR (").append(ENTITY_TYPE).append(":\"").append(entityType).append("\"")
-              .append(" AND {!terms f=").append(field).append(" v='").append(values).append("'})");
+        return SolrClause.allOf(SolrClause.phrase(ENTITY_TYPE, entityType.toString()),
+                                SolrClause.terms(field, ids));
+    }
+
+    /** Narrows a search to the slice the caller asked for, or leaves it spanning everything. */
+    protected String buildPartitionFilter(VisibilityType visibilityType) {
+        return SearchPartition.requested(visibilityType)
+                .map(partition -> " AND " + partition.clause().asFilterQuery())
+                .orElse("");
     }
 
     /**
@@ -498,41 +484,14 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
         return new NdexException("Error from NDEx Solr server: " + e.getMessage());
     }
 
-    /**
-     * Escapes a value for safe interpolation inside a double-quoted Solr/Lucene
-     * phrase (e.g. {@code owner:"<value>"} in a filter query). Only the backslash
-     * and double-quote characters can terminate or alter a quoted phrase, so those
-     * are the only characters escaped. This prevents a value such as
-     * {@code zzz") OR (*:*) OR (owner:"zzz} from breaking out of the phrase and
-     * injecting boolean clauses into an access-control filter query. The backslash
-     * is escaped first so a value's own backslashes are not confused with the
-     * escaping added for the double-quotes.
-     *
-     * <p>For values that contain none of these characters (typical account names
-     * and UUIDs) the input is returned unchanged, so existing queries are unaffected.
-     *
-     * @param value the raw value to place inside a quoted phrase (may be null)
-     * @return the escaped value, or null if the input was null
-     */
+    /** Escapes a value for use inside a double-quoted Solr phrase. */
     protected static String escapeForFilter(String value) {
-        if (value == null) {
-            return null;
-        }
-        return value.replace("\\", "\\\\").replace("\"", "\\\"");
+        return SolrClause.escape(value);
     }
 
     @Override
     public void close () {
         solrClientWrapper.close();
     }
-    static String getCoreNameFromVisibility(VisibilityType visibilityType){
-        if (visibilityType.equals(VisibilityType.PUBLIC) || visibilityType.equals(VisibilityType.UNLISTED)){
-            return publicCoreName;
-        }
-        return privateCoreName;
-    }
-
-
-
 
 }

@@ -5,6 +5,76 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.8] - unreleased
+
+### Changed
+
+- **The `public-nfs` and `private-nfs` Solr cores are now one core, `ndex-nfs`.** Each core computed
+relevance from its own corpus statistics, so their scores were never comparable — measured in
+production, the same query scored 61.12 in one and 70.92 in the other. A caller wanting both their
+public and private files therefore had to search twice and sort the union of two unrelated number
+ranges, which is the root of [#199](https://github.com/ndexbio/ndex-rest/issues/199).
+[#209](https://github.com/ndexbio/ndex-rest/issues/209)
+  - **`POST /v3/search/files` with `visibility` omitted now returns everything the caller may see**,
+  ranked as one result set: public files plus, when authenticated, their own private and unlisted files
+  and everything shared with them. It previously returned public files only. **Anonymous callers are
+  unaffected** — public files were always the whole of their access.
+  - **Files of different visibilities are now ranked against each other, on both APIs.** One query scores
+  every file the caller may see against one corpus, so a private file of their own can sit between two
+  public ones when that is where its relevance puts it. Public results no longer precede private ones as
+  a group: relevance alone decides the order. Previously no client could produce this list — merging two
+  responses could only append one to the other, and their scores came from different corpora.
+  - **`visibility=PUBLIC` and `visibility=PRIVATE` return exactly what they returned before**, and
+  `UNLISTED` is still rejected with `400`. What each request returns:
+    - **omitted** — authenticated: every public file, everything they own, and private files shared
+      with them. Anonymous: every public file.
+    - **`PUBLIC`** — authenticated: every public file, plus their own unlisted ones. Anonymous: every
+      public file.
+    - **`PRIVATE`** — authenticated: their own private files, plus private files shared with them.
+      Anonymous: rejected with `401`.
+  - **A search asking for `WRITE` or `ADMIN` without credentials now returns nothing.** A permission on
+  a search query asks which files the caller may change, and an anonymous caller may change none, so the
+  answer is an empty result set; it previously returned every public file. **This is not a breaking
+  change** — those files remain readable by anyone, and a search that omits the permission or asks for
+  `READ` still returns them. Authenticated `WRITE` and `ADMIN` searches are unchanged.
+  - **`POST /v2/search/network` paginates correctly for authenticated callers, and its results are now
+  interleaved by relevance.** This endpoint has no `visibility` parameter and always returned everything
+  the caller could see; what changes is the order and the paging. It previously concatenated a public
+  page with a private one, so every public result preceded every private one and the two halves carried
+  scores from different corpora. Each core was also paged independently, so a request for N rows could
+  return up to 2N — N from each — and successive pages were not a partition of one result set.
+  `numFound` is now the count of matching documents rather than a sum over two cores; the two agree
+  except where the stranded-document defect had left the same file in both. Anonymous callers are
+  unaffected, since only the public core was ever queried for them.
+  - A visibility change now rewrites the indexed document in place rather than moving it between cores,
+  which removes the class of defect that could strand a stale copy in the core a document had left.
+  - **Operators:** the `ndex-nfs` configset must be installed on the Solr server before the upgraded
+  application starts, and `SolrIndexBuilder nfs` (or `GET /v3/admin/reindex-v3`) must then populate the
+  new core. `public-nfs` and `private-nfs` are left untouched as the rollback path. Containers install
+  the configset automatically on start, including on an upgrade over an existing volume.
+
+### Fixed
+
+- **Editing a network now updates search.** Every endpoint that changes a network skipped the
+re-index unless its index level was set, and that column defaults to `NONE` — so the edit reached
+Postgres and never reached Solr, leaving the network findable only as it used to be. This affected
+renames, visibility changes, content replacement and aspect updates alike. Index level no longer
+affects whether a network is findable.
+  - **Operators:** run `SolrIndexBuilder nfs` (or `GET /v3/admin/reindex-v3`) once after upgrading to
+  resync anything stranded before the fix.
+- **Sharing a network no longer triggers a re-index.** Search stores no permission state, so a grant
+or revoke could not change the indexed document. Who may find a network is resolved on every query and
+still takes effect on the grantee's next search.
+- **Renaming a folder or shortcut no longer moves it to the top level.** `PUT /v3/files/folders/{folderid}`
+and `PUT /v3/files/shortcuts/{shortcutid}` wrote the parent on every request, so a body that carried only
+a name relocated the item out of its folder — silently revoking the access its grantees inherited from
+that folder. An omitted parent now leaves the item where it is, matching how the same requests already
+treat an omitted name or description.
+- **`PUT /v2/network/{networkid}/summary` answers a partial body with `400` instead of `500`.** It
+overwrites name, description, version, visibility and properties together, so a payload without a
+visibility is a bad request rather than a server error. Use `PUT /v2/network/{networkid}/profile` to
+change a subset of those fields.
+
 ## [3.0.7] - 2026-09-21
 
 ### Breaking Changes

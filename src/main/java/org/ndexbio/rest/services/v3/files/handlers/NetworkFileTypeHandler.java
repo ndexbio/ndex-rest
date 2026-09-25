@@ -30,7 +30,6 @@ import org.ndexbio.model.object.CopyRequest;
 import org.ndexbio.model.object.NdexObjectUpdateStatus;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.User;
-import org.ndexbio.model.object.network.NetworkIndexLevel;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.rest.services.NetworkServiceV2;
@@ -85,8 +84,7 @@ public class NetworkFileTypeHandler extends AbstractFileTypeHandler {
         createNetworkEntryAndFiles(uuid, user, srcNetUUID, targetId);
 
         NdexServerQueue.INSTANCE.addSystemTask(
-            new SolrTaskRebuildNetworkIdx(uuid, SolrIndexScope.individual, true, null, NetworkIndexLevel.NONE, false)
-        );
+            new SolrTaskRebuildNetworkIdx(uuid, SolrIndexScope.individual, true, null));
 
         NdexObjectUpdateStatus status = new NdexObjectUpdateStatus();
         status.setUuid(uuid);

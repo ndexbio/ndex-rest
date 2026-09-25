@@ -46,10 +46,11 @@ public class NFSSearchProvider implements SearchProvider {
         try {
             // Search stores no permission state, so folder-inherited access is resolved here, once, from
             // the live database — which is why a share or a revoke shows up on the very next search.
-            // Skipped for the public core: it must not consult a scope (an UNLISTED file stays unlisted
-            // whatever folder grants exist), so resolving one would only cost a query.
+            // Resolved for every authenticated caller: the merged filter pins the scope clauses to
+            // PRIVATE documents itself, so an UNLISTED file still stays unlisted whatever grants exist.
+            // Skipping it whenever visibility was PUBLIC would silently drop shared-folder results.
             SearchScope scope = SearchScope.EMPTY;
-            if (visibilityType != VisibilityType.PUBLIC && accesser != null) {
+            if (accesser != null) {
                 try (NetworkDAO networkDAO = Configuration.getInstance().getDAOFactory().getNetworkDAO()) {
                     scope = networkDAO.resolveSearchScope(accesser.getExternalId(),
                             query.getPermission() == Permissions.WRITE ? Permissions.WRITE : Permissions.READ);

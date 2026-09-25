@@ -55,8 +55,8 @@ terminal (see the `unlist-public-none` section for an example).
 | `all-networks-online` | All networks | Rebuilds network indexes without the `islocked=false` precondition; tolerates per-network failures and keeps going. |
 | `global-networks` | Global network index | Rebuilds the global network index only (no per-network query cores). |
 | `all-local` | Per-network query cores | Creates the per-network Solr query cores for networks at or above the autocreate node-count threshold. |
-| `nfs` | NFS indexes | Clears `public-nfs` and `private-nfs`, then rebuilds every folder, shortcut and network document from PostgreSQL. Offline equivalent of `GET /v3/admin/reindex-v3`. |
-| `unlist-public-none` | Maintenance | Flips `PUBLIC` + `solr_idx_lvl=NONE` networks to `UNLISTED` and moves them from `public-nfs` to `private-nfs`. |
+| `nfs` | NFS index | Clears `ndex-nfs`, then rebuilds every folder, shortcut and network document from PostgreSQL. Offline equivalent of `GET /v3/admin/reindex-v3`. |
+| `unlist-public-none` | Maintenance | Flips `PUBLIC` + `solr_idx_lvl=NONE` networks to `UNLISTED` and re-indexes them so the indexed document carries the new visibility. |
 | `<networkUUID>` | Single network | Rebuilds the index for one network by UUID. |
 
 ### `all`
@@ -127,12 +127,14 @@ Logs how many were checked vs. created.
 java -cp "..." org.ndexbio.common.solr.SolrIndexBuilder nfs
 ```
 
-Rebuilds the two file-search indexes. It empties `public-nfs` and `private-nfs`, then rebuilds every
-folder, shortcut and network document from PostgreSQL. This is the offline equivalent of
-`GET /v3/admin/reindex-v3`.
+Rebuilds the file-search index. It empties `ndex-nfs`, then rebuilds every folder, shortcut and network
+document from PostgreSQL. This is the offline equivalent of `GET /v3/admin/reindex-v3`.
 
-**Both indexes are emptied before the rebuild starts, so search returns nothing until it finishes.** Run
-it in a maintenance window.
+**The index is emptied before the rebuild starts, so search results hydrate as it runs** rather than
+being complete from the first moment. The API keeps serving throughout; run it out of hours.
+
+Any `public-nfs`/`private-nfs` left over from before the core merge is deliberately left untouched — it
+is the rollback artifact for that release.
 
 ### `unlist-public-none`
 
@@ -140,10 +142,10 @@ it in a maintenance window.
 java -cp "..." org.ndexbio.common.solr.SolrIndexBuilder unlist-public-none
 ```
 
-Maintenance command for the `public-nfs` cleanup. It finds every network with
+Maintenance command for the PUBLIC-with-no-index cleanup. It finds every network with
 `visibility = 'PUBLIC'` and `solr_idx_lvl = 'NONE'` that is not deleted, flips
 each to `UNLISTED` in Postgres, and runs the Solr delete + rebuild so the file
-index entry moves from `public-nfs` to `private-nfs`.
+indexed document is rewritten with the new visibility.
 
 Behavior details:
 

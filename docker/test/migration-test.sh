@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 # NDEx upgrade test — current released image → current local build.
 #
-# Usage: ./migration-test.sh [--skip-build]
+# Usage: ./migration-test.sh [--skip-build] [--base <version>]
+#
+# The upgrade span under test is chosen by --base (default 3.0.4). A released version is seeded,
+# then this build is brought up on its volume. Assertions about a specific migration only hold when
+# the span crosses the release that introduced it, so those are gated on the base version rather
+# than assumed — see spans_release().
 #
 # Runs as GROUP 2 of the integration suite, after the functional group has finished
 # and its container and volume are gone. The two groups never share state: this one
@@ -25,7 +30,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FIXTURES_DIR="${SCRIPT_DIR}/fixtures"
 REPO_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-BASE_IMAGE="ndexbio/ndex-rest:3.0.4"   # current released version
+BASE_VERSION="${BASE_VERSION:-3.0.4}"
+BASE_IMAGE="ndexbio/ndex-rest:${BASE_VERSION}"
 CURRENT_IMAGE="ndexbio/ndex-rest"
 CONTAINER="ndex-migration-test"
 VOLUME="ndex-it-migration-data"
@@ -36,7 +42,15 @@ OWNER="mig-owner"; OWNER_PW="MigOwner1!"
 GRANTEE="mig-grantee"; GRANTEE_PW="MigGrantee1!"
 
 SKIP_BUILD=false
-[[ "${1:-}" == "--skip-build" ]] && SKIP_BUILD=true
+usage() { echo "Usage: $0 [--skip-build] [--base <version>]" >&2; exit 2; }
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --skip-build) SKIP_BUILD=true; shift ;;
+    --base)       [[ $# -ge 2 && -n "$2" ]] || usage
+                  BASE_VERSION="$2"; BASE_IMAGE="ndexbio/ndex-rest:${BASE_VERSION}"; shift 2 ;;
+    *)            usage ;;
+  esac
+done
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
 PASSED=0
@@ -45,6 +59,16 @@ step() { echo ""; echo -e "${BOLD}=== $1 ===${NC}"; }
 ok()   { PASSED=$((PASSED+1)); echo -e "  ${GREEN}✓ PASS${NC}: $1"; }
 die()  { echo ""; echo -e "  ${RED}✗ FAIL${NC}: $1"; echo -e "${RED}${BOLD}MIGRATION TEST FAILED${NC} (after ${PASSED} passing assertions)"; exit 1; }
 expect() { [[ "$2" == "$3" ]] || die "$1 — got '$2', expected '$3'"; ok "$1 = $3"; }
+skipped() { echo -e "  ${CYAN}—${NC} skipped: $1"; }
+warn()    { echo -e "  ${CYAN}—${NC} note: $1"; }
+
+# True when this upgrade span crosses the given release, i.e. the base predates it. A migration's
+# effects can only be asserted on a span that actually runs that migration; from a later base the
+# work is already done and the assertion would be testing nothing.
+spans_release() { # <release>
+  [[ "${BASE_VERSION}" != "$1" \
+     && "$(printf '%s\n%s\n' "${BASE_VERSION}" "$1" | sort -V | head -1)" == "${BASE_VERSION}" ]]
+}
 
 cleanup() {
   echo ""
@@ -98,7 +122,13 @@ found()   { if curl -s -u "$1" -X POST -H 'Content-Type: application/json' -d "{
 
 # ══════════════════════════════════════════════════════════════════════════════
 step "Phase A — seed on the released image (${BASE_IMAGE})"
-docker pull "${BASE_IMAGE}" > /dev/null 2>&1 || die "could not pull ${BASE_IMAGE}"
+# A released tag is immutable, so a local copy is as good as a fresh pull. Falling back to it
+# keeps a registry hiccup from failing an upgrade span that has everything it needs.
+if ! docker pull "${BASE_IMAGE}" > /dev/null 2>&1; then
+  docker image inspect "${BASE_IMAGE}" > /dev/null 2>&1 \
+    || die "could not pull ${BASE_IMAGE}, and no local copy to fall back on"
+  warn "could not reach the registry — using the local copy of ${BASE_IMAGE}"
+fi
 start_container "${BASE_IMAGE}"
 ok "released image ready on a fresh volume"
 
@@ -182,10 +212,17 @@ expect "no data was lost across the upgrade" \
   "$(psql_mig "SELECT count(*) FROM core.network WHERE is_deleted=false")" "${PRE_NETS}"
 expect "network_parent_idx exists" \
   "$(psql_mig "SELECT count(*) FROM pg_indexes WHERE schemaname='core' AND indexname='network_parent_idx'")" 1
-expect "membership archive captured the pre-upgrade rows" \
-  "$(psql_mig "SELECT count(*) FROM core.user_network_membership_archive")" "${PRE_UNM}"
-expect "never-downgrade: direct WRITE under a READ-only folder survived cleanup" \
-  "$(psql_mig "SELECT count(*) FROM core.user_network_membership WHERE network_id='${M_NET2}' AND permission_type::text='WRITE'")" 1
+# The archive is created by schema_update_3.0.3_to_3.0.5 with CREATE TABLE IF NOT EXISTS ... AS
+# SELECT, so it only captures anything on a span that crosses 3.0.5. From a later base the table is
+# already there and the statement is a no-op — asserting a row count then would assert nothing.
+if spans_release 3.0.5; then
+  expect "membership archive captured the pre-upgrade rows" \
+    "$(psql_mig "SELECT count(*) FROM core.user_network_membership_archive")" "${PRE_UNM}"
+  expect "never-downgrade: direct WRITE under a READ-only folder survived cleanup" \
+    "$(psql_mig "SELECT count(*) FROM core.user_network_membership WHERE network_id='${M_NET2}' AND permission_type::text='WRITE'")" 1
+else
+  skipped "membership archive — base ${BASE_VERSION} already carries it, so this span never runs that migration"
+fi
 
 # The headline: data seeded on the broken version now resolves, with NO re-grant.
 expect "grantee sees the network added after the grant, with no re-share" "$(listed "${GRANTEE}:${GRANTEE_PW}" "${M_FOLDER}" "${M_NET}")" yes
@@ -204,6 +241,18 @@ expect "owner still sees their own network" \
 expect "before the reindex, the grantee cannot yet FIND the shared network" \
   "$(found "${GRANTEE}:${GRANTEE_PW}" "${M_NET}")" no
 
+# ── the core merge: ndex-nfs must exist and be empty before the rebuild ───────
+# /apps is a persistent volume, so .initialized survives the image swap. Configset installation
+# therefore runs on every start rather than behind that sentinel — without that, this core would be
+# created from Solr's default configset and its schema would silently lack parentUuid and entityType.
+# Asserting the empty-then-populated transition is what proves the rebuild did the work.
+expect "the ndex-nfs core exists on the upgraded container" \
+  "$(docker exec "${CONTAINER}" bash -c "curl -s 'http://localhost:8983/solr/admin/cores?action=STATUS&core=ndex-nfs&indexInfo=false&wt=json' | grep -q ndex-nfs && echo yes || echo no")" yes
+expect "its configset was installed despite .initialized already existing" \
+  "$(docker exec "${CONTAINER}" bash -c "test -f /apps/solr/data/configsets/ndex-nfs/conf/schema.xml && echo yes || echo no")" yes
+expect "ndex-nfs is empty before the rebuild" \
+  "$(docker exec "${CONTAINER}" bash -c "curl -s 'http://localhost:8983/solr/ndex-nfs/select?q=*:*&rows=0&wt=json'" 2>/dev/null | grep -oE '"numFound":[0-9]+' | grep -oE '[0-9]+$')" 0
+
 MIG_PW=$(docker exec "${CONTAINER}" bash -c "grep '^MigrationPassword=' /apps/ndex/config/ndex.properties | cut -d= -f2-" | tr -d '[:space:]')
 [[ -n "${MIG_PW}" ]] || die "could not read MigrationPassword for the backfill reindex"
 REIDX_HTTP=$(code "${BASE_URL}/v3/admin/reindex-v3?password=${MIG_PW}")
@@ -214,12 +263,23 @@ expect "after the reindex, the grantee FINDS a network shared before the upgrade
 expect "the owner finds it too" \
   "$(found "${OWNER}:${OWNER_PW}" "${M_NET}")" yes
 expect "the backfill wrote parentUuid onto the network document" \
-  "$(docker exec "${CONTAINER}" bash -c "curl -s 'http://localhost:8983/solr/private-nfs/select?q=uuid:${M_NET}&fq=parentUuid:${M_FOLDER}&rows=0&wt=json'" 2>/dev/null | grep -oE '"numFound":[0-9]+' | grep -oE '[0-9]+$')" 1
-expect "the rebuild dropped the stale access list from the document" \
-  "$(docker exec "${CONTAINER}" bash -c "curl -s 'http://localhost:8983/solr/private-nfs/select?q=uuid:${M_NET}&fq=userRead:*&rows=0&wt=json'" 2>/dev/null | grep -oE '"numFound":[0-9]+' | grep -oE '[0-9]+$')" 0
+  "$(docker exec "${CONTAINER}" bash -c "curl -s 'http://localhost:8983/solr/ndex-nfs/select?q=uuid:${M_NET}&fq=parentUuid:${M_FOLDER}&rows=0&wt=json'" 2>/dev/null | grep -oE '"numFound":[0-9]+' | grep -oE '[0-9]+$')" 1
+# The stale copied-on access list is now gone at the schema level rather than merely unpopulated:
+# ndex-nfs declares no userRead/userEdit at all. Asserting that is stronger than asserting no
+# document carries one — and it is the only form that works, since querying fq=userRead:* against a
+# schema without the field is an error rather than a zero-hit search.
+expect "ndex-nfs declares no stale access-list fields" \
+  "$(docker exec "${CONTAINER}" bash -c "curl -s 'http://localhost:8983/solr/ndex-nfs/schema/fields?wt=json'" 2>/dev/null | grep -cE '"name":"(userRead|userEdit)"')" 0
+
+# The old cores are the rollback path for this release, so the rebuild must leave them alone. They
+# exist here only because the released image created them; a fresh install never has them.
+PRE_MERGE_DOCS=$(docker exec "${CONTAINER}" bash -c "curl -s 'http://localhost:8983/solr/private-nfs/select?q=*:*&rows=0&wt=json'" 2>/dev/null | grep -oE '"numFound":[0-9]+' | grep -oE '[0-9]+$' || echo 0)
+[[ "${PRE_MERGE_DOCS}" -gt 0 ]] \
+  && ok "private-nfs still holds its ${PRE_MERGE_DOCS} pre-upgrade documents (rollback path intact)" \
+  || die "the rebuild emptied private-nfs — the rollback path for this release is gone"
 
 echo ""
 echo -e "${GREEN}${BOLD}================================================${NC}"
-echo -e "${GREEN}${BOLD}  ✓ MIGRATION TEST PASSED (${PASSED} assertions)${NC}"
+echo -e "${GREEN}${BOLD}  ✓ MIGRATION TEST PASSED — span ${BASE_VERSION} → current (${PASSED} assertions)${NC}"
 echo -e "${GREEN}${BOLD}================================================${NC}"
 exit 0

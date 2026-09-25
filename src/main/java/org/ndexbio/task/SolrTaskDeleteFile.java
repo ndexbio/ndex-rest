@@ -9,7 +9,6 @@ import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.TaskType;
-import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
 
 import java.io.IOException;
@@ -21,7 +20,6 @@ public class SolrTaskDeleteFile extends NdexSystemTask {
 
 	private UUID fileId;
     private static final TaskType taskType = TaskType.SYS_SOLR_DELETE_NETWORK;
-	private final VisibilityType visibilityType;
 	private final boolean globalIdxOnly ;
 	private final FileType fileType;
 
@@ -31,16 +29,13 @@ public class SolrTaskDeleteFile extends NdexSystemTask {
 	 * startup queue replay.
 	 */
 	public final static String fileTypeAttr = "fileType";
-	public final static String visibilityAttr = "visibility";
 
-	public SolrTaskDeleteFile(UUID fileId, VisibilityType visibilityType) {
-		this(fileId, visibilityType, true, FileType.NETWORK);
+	public SolrTaskDeleteFile(UUID fileId) {
+		this(fileId, true, FileType.NETWORK);
 	}
-	public SolrTaskDeleteFile(UUID fileId, VisibilityType visibilityType, boolean globalIdxOnly,
-			FileType fileType) {
+	public SolrTaskDeleteFile(UUID fileId, boolean globalIdxOnly, FileType fileType) {
 		super();
 		this.fileId = fileId;
-		this.visibilityType = visibilityType;
 		this.globalIdxOnly = globalIdxOnly;
 		this.fileType = fileType;
 	}
@@ -51,7 +46,7 @@ public class SolrTaskDeleteFile extends NdexSystemTask {
 		String id = fileId.toString();
 		
 		try(FolderIndexManager globalIdx = Configuration.getInstance().getSolrObjectFactory().getFolderIndexManager()) {
-			globalIdx.delete(id, visibilityType);
+			globalIdx.delete(id);
 			// Only networks have a per-network query core. Asking Solr to unload one for a
 			// folder or shortcut can never succeed - it just costs a round trip and an error.
 			if (!globalIdxOnly && fileType == FileType.NETWORK) {
@@ -73,9 +68,6 @@ public class SolrTaskDeleteFile extends NdexSystemTask {
 		// guard above and dropping a per-network core for a folder.
 		t.setAttribute(fileTypeAttr, fileType.toString());
 		t.setAttribute(SolrTaskDeleteNetwork.globalIdxAttr, Boolean.valueOf(globalIdxOnly));
-		if (visibilityType != null) {
-			t.setAttribute(visibilityAttr, visibilityType.toString());
-		}
 		return t;
 	}
 
@@ -89,11 +81,11 @@ public class SolrTaskDeleteFile extends NdexSystemTask {
 	 *
 	 * <p>Every attribute is read defensively: rows written before these attributes existed must
 	 * reconstruct rather than fail, because a task that cannot be rebuilt would otherwise stop the
-	 * server from starting.
+	 * server from starting. Rows written before the core merge still carry a "visibility" attribute;
+	 * it is simply ignored, and routing has always keyed on fileType rather than on it.
 	 */
 	static SolrTaskDeleteFile fromTask(Task t) {
 		return new SolrTaskDeleteFile(UUID.fromString(t.getResource()),
-				NdexSystemTask.visibilityFromAttribute(t.getAttribute(visibilityAttr)),
 				!Boolean.FALSE.equals(t.getAttribute(SolrTaskDeleteNetwork.globalIdxAttr)),
 				fileTypeFromAttribute(t.getAttribute(fileTypeAttr)));
 	}

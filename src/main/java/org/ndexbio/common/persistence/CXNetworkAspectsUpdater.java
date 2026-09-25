@@ -20,7 +20,6 @@ import org.ndexbio.cxio.metadata.MetaDataElement;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
-import org.ndexbio.model.object.network.NetworkIndexLevel;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.rest.Configuration;
 import org.ndexbio.task.NdexServerQueue;
@@ -110,13 +109,10 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 			try (SingleNetworkSolrIdxManager idx2 = Configuration.getInstance().getSolrObjectFactory().getSingleNetworkSolrIdxManager(getNetworkId().toString())) {
 				idx2.dropIndex();
 			}
-			NetworkIndexLevel indexLevel = dao.getIndexLevel(networkUUID);
-			if (indexLevel != NetworkIndexLevel.NONE)
-				NdexServerQueue.INSTANCE.addSystemTask(
-						new SolrTaskRebuildNetworkIdx(networkUUID, SolrIndexScope.both, false, null, indexLevel,false));
-			else
-				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkUUID,
-						SolrIndexScope.individual, false, null, NetworkIndexLevel.NONE,false));
+			// Scope stays 'both' whatever the index level: the aspects that just changed feed the file
+			// document as well as the per-network node core.
+			NdexServerQueue.INSTANCE.addSystemTask(
+					new SolrTaskRebuildNetworkIdx(networkUUID, SolrIndexScope.both, false, null));
 			dao.setFlag(networkUUID, "iscomplete", false);
 
 			dao.commit();

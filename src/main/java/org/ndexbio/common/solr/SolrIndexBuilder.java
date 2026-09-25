@@ -513,8 +513,8 @@ public class SolrIndexBuilder implements AutoCloseable {
 	}
 	
 	/**
-	 * Offline equivalent of {@code GET /v3/admin/reindex-v3}: clears {@code public-nfs} and
-	 * {@code private-nfs}, then rebuilds every folder, shortcut and network document from PostgreSQL.
+	 * Offline equivalent of {@code GET /v3/admin/reindex-v3}: clears {@code ndex-nfs}, then rebuilds
+	 * every folder, shortcut and network document from PostgreSQL.
 	 *
 	 * <p>Preferred over the endpoint on a large instance, because the endpoint runs the whole rebuild
 	 * synchronously inside a single HTTP request.</p>
@@ -523,11 +523,11 @@ public class SolrIndexBuilder implements AutoCloseable {
 	 * folder and shortcut documents would keep whatever they were last written with — a half-migrated
 	 * index, and a silent one.</p>
 	 *
-	 * <p>Both cores are emptied before the rebuild starts, so search returns nothing until it finishes.
-	 * Run it in a maintenance window.</p>
+	 * <p>The core is emptied before the rebuild starts, so search results hydrate as it runs rather than
+	 * being complete from the first moment. Run it out of hours.</p>
 	 */
 	private static void rebuildNFSIdx() throws Exception {
-		logger.info("Clearing public-nfs and private-nfs, then rebuilding folders, shortcuts and networks.");
+		logger.info("Clearing ndex-nfs, then rebuilding folders, shortcuts and networks.");
 		// try-with-resources: NFSReIndexer holds Solr clients whose non-daemon threads would otherwise
 		// keep this CLI process alive after the rebuild finishes.
 		try (NFSReIndexer reIndexer = new NFSReIndexer()) {
@@ -545,8 +545,8 @@ public class SolrIndexBuilder implements AutoCloseable {
 	/**
 	 * Find all networks where visibility='PUBLIC' and solr_idx_lvl='NONE',
 	 * flip them to UNLISTED in Postgres, then synchronously run Solr delete+rebuild
-	 * tasks so the file index is updated in public-nfs (both PUBLIC and UNLISTED
-	 * networks use the public-nfs core; visibility controls query-time filtering).
+	 * tasks so the file index carries the new visibility. This was once a cross-core move; with one
+	 * core it is a re-index that rewrites the document's visibility field in place.
 	 *
 	 * Per-network: (1) acquire lock, UPDATE visibility, commit, release lock;
 	 * (2) run Solr tasks with no lock held. On any failure, attempts a compensating
@@ -556,10 +556,12 @@ public class SolrIndexBuilder implements AutoCloseable {
 	private static void unlistPublicNoneNetworks() throws Exception {
 		try (PostgresNetworkDAO dao = new PostgresNetworkDAO()) {
 			unlistPublicNoneNetworks(dao, (networkId, ownerId, ownerName) -> {
+				// A single re-index: the document is keyed on uuid, so writing it again replaces the
+				// PUBLIC-visibility copy. The preceding delete was only ever there to remove the copy
+				// from the core the network was leaving.
 				// ignoreCxFiles=true: skips CX2 aspect reads (these networks may have no CX2
 				// files on disk). The CX1 AspectIterator fallback still runs but returns nothing
 				// for NONE-indexed networks, so only metadata is indexed.
-				new SolrTaskDeleteFile(networkId, VisibilityType.PUBLIC).run();
 				new SolrTaskRebuildFileIdx(networkId, ownerId, ownerName,
 						VisibilityType.UNLISTED, FileType.NETWORK, false, true).run();
 			});

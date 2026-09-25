@@ -132,8 +132,15 @@ push-docker: docker-multi-platform ## push multi-platform manifest to registry v
 integration-test: ## run integration tests (functional group, then the upgrade group)
 	docker/test/integration-test.sh
 
-migration-test: ## run only the released-image -> current upgrade test
-	docker/test/migration-test.sh
+# Every span a production instance might upgrade from. 3.0.4 predates the membership-archive
+# migration and is the only span that can assert it; 3.0.6 is the hop a current deployment takes.
+MIGRATION_SPANS ?= 3.0.4 3.0.6
+
+migration-test: ## run the upgrade test for each base version in MIGRATION_SPANS
+	@for v in $(MIGRATION_SPANS); do \
+		echo "── upgrade span $$v → current ──"; \
+		docker/test/migration-test.sh --base $$v || exit 1; \
+	done
 
 integration-test-mcp: ## run MCP integration tests (standalone)
 	docker/test/integration-mcp-test.sh

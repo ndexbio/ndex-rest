@@ -62,7 +62,6 @@ import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.NdexPropertyValuePair;
 import org.ndexbio.model.object.NdexStatus;
 import org.ndexbio.model.object.User;
-import org.ndexbio.model.object.network.NetworkIndexLevel;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
@@ -212,7 +211,7 @@ public class AdminServiceV2 extends NdexService {
 				
 				dao.setFlag(networkId, "iscomplete", false);
 				dao.commit();
-				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null, NetworkIndexLevel.ALL,false));
+				NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null));
 								
 			/*	String name = dao.getNetworkName(networkId);
 				String url = Configuration.getInstance().getHostURI() + "/viewer/networks/"+ networkId ;
@@ -270,7 +269,7 @@ public class AdminServiceV2 extends NdexService {
 				dao.cancelDOI(networkId);
 				//dao.setFlag(networkId, "iscomplete", false);
 				dao.commit();
-				//NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null, NetworkIndexLevel.ALL));
+				//NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,null));
 
 				String name = dao.getNetworkName(networkId);
 				

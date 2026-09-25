@@ -8,7 +8,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
-import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -398,7 +397,12 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	    if (name != null) {
 	        sb.append(", name=?");
 	    }
-	    sb.append(", parent=?");
+	    // Treated like name and description: an omitted parent leaves the folder where it is. Writing
+	    // it unconditionally meant a request that only changed the name also moved the folder to the
+	    // root, silently revoking every grant its subtree inherited from its old parent.
+	    if (parentId != null) {
+	        sb.append(", parent=?");
+	    }
 	    if (description != null) {
 	        sb.append(", description=?");
 	    }
@@ -410,9 +414,7 @@ public class PostgresFolderDAO extends NdexDBDAO implements FolderDAO {
 	        if (name != null) {
 	            pst.setString(idx++, name);
 	        }
-	        if (parentId == null) {
-	        	pst.setNull(idx++, Types.OTHER);
-	        } else {
+	        if (parentId != null) {
 	        	pst.setObject(idx++, parentId);
 	        }
 	        if (description != null) {

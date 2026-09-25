@@ -94,7 +94,6 @@ import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.exceptions.ObjectNotFoundException;
 import org.ndexbio.model.object.NdexPropertyValuePair;
-import org.ndexbio.model.object.network.NetworkIndexLevel;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
 import org.ndexbio.rest.Configuration;
@@ -345,7 +344,6 @@ public class CXNetworkLoader implements AutoCloseable {
 					throw new NdexException ("DB error when setting unlock flag: " + e.getMessage(), e);
 				}
 
-				NetworkIndexLevel indexLevel = dao.getIndexLevel(networkId);
 				boolean needIndividualIndex = this.nodeIdTracker.getDefinedElementSize() >= SingleNetworkSolrIdxManager.AUTOCREATE_THRESHHOLD;
 				
 				//clear the individual index 
@@ -353,14 +351,16 @@ public class CXNetworkLoader implements AutoCloseable {
 					idx2.dropIndex();
 				}
 
-				if ( isUpdate && indexLevel != NetworkIndexLevel.NONE)  {
+				// An update always refreshes the file document: its name and description changed, and the
+				// network's index level says nothing about whether it stays findable.
+				if ( isUpdate )  {
 				   if ( needIndividualIndex)
-					  NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.both,false,indexedFields, indexLevel,true ));
+					  NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.both,false,indexedFields));
 				   else 
-				      NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,indexedFields, indexLevel,true ));
+				      NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.global,false,indexedFields));
 				} else {
 					if (needIndividualIndex)
-						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.both,!isUpdate, indexedFields, NetworkIndexLevel.NONE,true));
+						NdexServerQueue.INSTANCE.addSystemTask(new SolrTaskRebuildNetworkIdx(networkId,SolrIndexScope.both,!isUpdate, indexedFields));
 					else {
 						dao.setFlag(this.networkId, "iscomplete", true);
 						dao.commit();

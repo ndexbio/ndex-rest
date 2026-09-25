@@ -54,9 +54,9 @@ For complete setup, configuration, testing, and persistence instructions, see **
 
 ## Admin: Full Reindex (`/v3/admin/reindex-v3`)
 
-The reindex endpoint clears the `public-nfs` and `private-nfs` Solr indexes and rebuilds every folder, shortcut and network document from PostgreSQL. It is a full rebuild, not a targeted repair.
+The reindex endpoint clears the `ndex-nfs` Solr index and rebuilds every folder, shortcut and network document from PostgreSQL. It is a full rebuild, not a targeted repair.
 
-> **Search returns nothing while the rebuild runs**, because both indexes are emptied before it starts. Run it in a maintenance window.
+> **Search results hydrate as the rebuild runs**, because the index is emptied before it starts. The API keeps serving throughout; run it out of hours.
 
 ### When to use it
 
