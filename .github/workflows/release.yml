@@ -1,16 +1,25 @@
 name: Release
 
+# Publishing a GitHub release runs this; its tag's prefix picks the jobs that run:
+#   v<version>                 publishes ndexbio/ndex-rest:<version> (multi-arch) and attaches
+#                              ndex-mcp.mcpb and McpManifest-<tag>.md to the release.
+#   ndex-rest-helm-v<version>  publishes the Helm chart ndex-rest-helm-<version>.tgz to
+#                              oci://registry-1.docker.io/ndexbio/ndex-rest-helm and attaches it
+#                              to the release; refused unless <version> is the chart's own and
+#                              the image it deploys (its appVersion) is already on Docker Hub.
+# Release them in that order: the image, then the chart that deploys it.
 on:
   release:
     types: [published]
   push:
     tags:
       - '*'
+      - '!ndex-rest-helm-v*'
 
 jobs:
   build-mcpb:
     runs-on: ubuntu-latest
-    if: github.event_name == 'release'
+    if: github.event_name == 'release' && !startsWith(github.event.release.tag_name, 'ndex-rest-helm-v')
 
     steps:
       - uses: actions/checkout@v4
@@ -28,7 +37,7 @@ jobs:
 
   publish-mcp-manifest:
     runs-on: ubuntu-latest
-    if: github.event_name == 'release'
+    if: github.event_name == 'release' && !startsWith(github.event.release.tag_name, 'ndex-rest-helm-v')
 
     steps:
       - uses: actions/checkout@v4
@@ -54,6 +63,7 @@ jobs:
 
   docker-push:
     runs-on: ubuntu-latest
+    if: ${{ !startsWith(github.event.release.tag_name, 'ndex-rest-helm-v') }}
 
     steps:
       - name: Determine Docker tag / detect duplicate
@@ -109,3 +119,18 @@ jobs:
           DOCKER_REPO: ndexbio/ndex-rest
           DOCKER_TAG: ${{ steps.setup.outputs.docker_tag }}
         run: make push-docker
+
+  push-chart:
+    if: github.event_name == 'release' && startsWith(github.event.release.tag_name, 'ndex-rest-helm-v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      # the pinned helm comes from the Makefile, as in make test
+      - run: make helm-push helm-attach CHART_TAG="${TAG#ndex-rest-helm-v}"
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+          GH_TOKEN: ${{ github.token }}

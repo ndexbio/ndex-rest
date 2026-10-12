@@ -1,4 +1,4 @@
-.PHONY: clean clean-test clean-pyc clean-build docs mcp-manifest help docker docker-dev docker-multi-platform buildx-setup push-docker integration-test integration-test-mcp build_claude_mcpb
+.PHONY: clean clean-test clean-pyc clean-build docs mcp-manifest help docker docker-dev docker-multi-platform buildx-setup push-docker integration-test integration-test-mcp build_claude_mcpb helm-package k8s-yml helm-push helm-attach chart-tag
 .DEFAULT_GOAL := help
 define BROWSER_PYSCRIPT
 import os, webbrowser, sys
@@ -15,7 +15,7 @@ define PRINT_HELP_PYSCRIPT
 import re, sys
 
 for line in sys.stdin:
-	match = re.match(r'^([a-zA-Z_-]+):.*?## (.*)$$', line)
+	match = re.match(r'^([a-zA-Z0-9_-]+):.*?## (.*)$$', line)
 	if match:
 		target, help = match.groups()
 		print("%-20s %s" % (target, help))
@@ -41,7 +41,7 @@ lint: ## check style with checkstyle:checkstyle
 # does not fix that — despite the name it selects a timestamp-based stale-source scanner
 # rather than forcing a full compile, and that scanner is what does the skipping. A clean
 # build is the only deterministic option, and costs a few seconds.
-test: ## run tests (always recompiles; incremental detection is unreliable here)
+test: helm-package ## lint and package the Helm chart, then run tests (always recompiles; incremental detection is unreliable here)
 	mvn clean test
 
 coverage: ## check code coverage with jacoco
@@ -153,3 +153,57 @@ build_claude_mcpb: ## package claude-extension/ into build/ndex-mcp.mcpb
 	cp -r claude-extension/server build/mcpb-staging/server
 	cd build/mcpb-staging && zip -r ../ndex-mcp.mcpb .
 	@echo "Built build/ndex-mcp.mcpb"
+
+# ── Helm chart (docker/ndex-rest-helm) ───────────────────────────────────────
+# helm is fetched, pinned, into .tools/<platform>/ on first use and checked against the sha256
+# that helm publishes beside the download, so a broken or truncated download never runs.
+HELM_VERSION := 4.3.0
+OS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
+ARCH := $(shell uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+PLATFORM := $(OS)-$(ARCH)
+TOOLS := .tools/$(PLATFORM)
+HELM := $(TOOLS)/helm-$(HELM_VERSION)
+SHA256 := $(if $(filter darwin,$(OS)),shasum -a 256,sha256sum)
+HELM_URL := https://get.helm.sh/helm-v$(HELM_VERSION)-$(PLATFORM).tar.gz
+
+$(HELM):
+	@mkdir -p $(TOOLS)
+	curl -fsSL -o $@.download $(HELM_URL)
+	@echo "$$(curl -fsSL $(HELM_URL).sha256sum | cut -d' ' -f1)  $@.download" | $(SHA256) -c - > /dev/null \
+		|| { rm -f $@.download; echo "$(HELM_URL): sha256 mismatch"; exit 1; }
+	tar -xzf $@.download -O $(PLATFORM)/helm > $@ && chmod +x $@ && rm $@.download
+
+CHART := docker/ndex-rest-helm
+CHART_VERSION := $(shell sed -n 's/^version: *//p' $(CHART)/Chart.yaml)
+APP_VERSION := $(shell sed -n 's/^appVersion: *"\(.*\)"/\1/p' $(CHART)/Chart.yaml)
+PACKAGE := dist/ndex-rest-helm-$(CHART_VERSION).tgz
+REGISTRY := registry-1.docker.io
+# helm push names the namespace only: the chart's name and version make ndexbio/ndex-rest-helm:<v>
+CHART_REPO := oci://$(REGISTRY)/ndexbio
+
+helm-package: $(HELM) ## lint the Helm chart, then package it as dist/ndex-rest-helm-<version>.tgz
+	$(HELM) lint --strict $(CHART)
+	$(HELM) package $(CHART) -d dist
+
+k8s-yml: $(HELM) ## render the Helm chart into a plain manifest, dist/k8s-ndex-deployment.yml (for podman kube play)
+	@mkdir -p dist
+	$(HELM) template ndex $(CHART) > dist/k8s-ndex-deployment.yml
+	@echo "Wrote dist/k8s-ndex-deployment.yml"
+
+# a release's version must be the chart's own: a tag never publishes a chart under another number
+chart-tag:
+	@test -n "$(CHART_TAG)" || { echo "CHART_TAG is not set: the release's version, e.g. $(CHART_VERSION)"; exit 1; }
+	@test "$(CHART_TAG)" = "$(CHART_VERSION)" || \
+		{ echo "CHART_TAG $(CHART_TAG) is not the chart's version $(CHART_VERSION) ($(CHART)/Chart.yaml)"; exit 1; }
+
+# a chart is never published before the image it deploys
+helm-push: chart-tag helm-package ## push the chart to oci://registry-1.docker.io/ndexbio/ndex-rest-helm (requires CHART_TAG, DOCKER_USERNAME, DOCKER_PASSWORD)
+	@docker manifest inspect docker.io/ndexbio/ndex-rest:$(APP_VERSION) > /dev/null || \
+		{ echo "ndexbio/ndex-rest:$(APP_VERSION), the chart's appVersion, is not on Docker Hub: release v$(APP_VERSION) first"; exit 1; }
+	@test -n "$$DOCKER_USERNAME" -a -n "$$DOCKER_PASSWORD" || \
+		{ echo "DOCKER_USERNAME and DOCKER_PASSWORD must be set"; exit 1; }
+	@echo "$$DOCKER_PASSWORD" | $(HELM) registry login $(REGISTRY) -u "$$DOCKER_USERNAME" --password-stdin
+	$(HELM) push $(PACKAGE) $(CHART_REPO)
+
+helm-attach: chart-tag helm-package ## attach the chart package to the ndex-rest-helm-v<version> GitHub release (requires CHART_TAG)
+	gh release upload "ndex-rest-helm-v$(CHART_VERSION)" $(PACKAGE) --clobber
