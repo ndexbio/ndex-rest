@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ndex.name" . }}
+  labels:
+    {{- include "ndex.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  # All service state lives on a single ReadWriteOnce PVC. The default RollingUpdate strategy
+  # leaves two pods using the same PVC at the same time; Recreate stops the old pod first.
+  strategy: {type: Recreate}
+  selector:
+    matchLabels:
+      {{- include "ndex.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ndex.selectorLabels" . | nindent 8 }}
+    spec:
+      initContainers:
+        - name: ndex-init
+          # the ndex image, so that the postgres and solr system users exist and chown can
+          # name them rather than rely on numeric UIDs
+          image: {{ include "ndex.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              mkdir -p \
+                /apps/ndex/config \
+                /apps/ndex/data \
+                /apps/postgres/config \
+                /apps/postgres/data \
+                /apps/keycloak/config \
+                /apps/keycloak/data \
+                /apps/solr/config \
+                /apps/solr/data \
+                /apps/mailhog/config
+              chown postgres:postgres /apps/postgres/config /apps/postgres/data
+              chown -R solr:solr /apps/solr/config /apps/solr/data
+          volumeMounts:
+            - {name: ndex-storage, mountPath: /apps}
+      containers:
+        - name: ndex
+          image: {{ include "ndex.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["--ndex", "--postgres", "--keycloak", "--solr", "--mailhog"]
+          ports:
+            - {name: ndex-rest, containerPort: 8080, protocol: TCP}
+            - {name: keycloak-http, containerPort: 8085, protocol: TCP}
+          readinessProbe:
+            httpGet: {path: /v3/admin/status, port: 8080}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - {name: ndex-storage, mountPath: /apps}
+      volumes:
+        - name: ndex-storage
+          persistentVolumeClaim: {claimName: {{ include "ndex.claimName" . }}}

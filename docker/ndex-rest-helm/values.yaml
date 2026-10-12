@@ -1,0 +1,35 @@
+# NDEx on Kubernetes: the NDEx REST server, PostgreSQL, Keycloak, Solr and MailHog in one pod.
+# Keep one values file per install and pass it, with --version, to every `helm install` and
+# `helm upgrade`.
+
+image:
+  # fully qualified, so `podman kube play` on `make k8s-yml` output needs no short-name lookup
+  repository: docker.io/ndexbio/ndex-rest
+  # empty: the chart's appVersion. Never set it older than the image the volume last ran: the
+  # schema upgrade only moves forward
+  tag: ""
+  pullPolicy: IfNotPresent
+
+# All service state lives on one ReadWriteOnce volume mounted on /apps, so NDEx runs as one
+# replica, replaced (not rolled) on every change.
+storage:
+  size: 512Gi
+  # empty: the cluster's default StorageClass
+  className: ""
+  # true: `helm uninstall` keeps the volume and its data; delete the PVC to remove them
+  keep: true
+  # the name of a PVC that already exists in the release's namespace, e.g. ndex-pvc from an
+  # install made with kubectl apply; the chart then mounts it and creates none
+  existingClaim: ""
+
+# the NDEx REST API
+service:
+  type: ClusterIP
+  port: 8080
+
+# Keycloak, which issues its tokens as http://localhost:8085: a client logging in has to reach
+# it on localhost:8085, e.g. through kubectl port-forward
+keycloakService:
+  port: 8085
+
+resources: {}

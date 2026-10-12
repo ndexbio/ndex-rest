@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+ndex-rest and its Helm chart (NDEx REST Helm) are versioned and released separately, each under its
+own heading.
+
+## [NDEx REST Helm 0.1.0] - Unreleased
+
+### Added
+
+- **The first release of the ndex-rest Helm chart**, `ndex-rest-helm`. It is published as
+`oci://registry-1.docker.io/ndexbio/ndex-rest-helm:0.1.0` and as `ndex-rest-helm-0.1.0.tgz` on its
+GitHub release. It installs with Helm 3.8 or later, or Helm 4, without `helm repo add`. It deploys
+`ndexbio/ndex-rest:3.0.8` (its `appVersion`) as one replica on one ReadWriteOnce volume, which
+`helm uninstall` keeps. Setting `storage.existingClaim=ndex-pvc` mounts the volume of an install made
+with `kubectl apply`. Start with [`docker/RUNBOOK.md`](docker/RUNBOOK.md), "NDEx on Kubernetes with
+Helm"; [`docker/ndex-rest-helm/README.md`](docker/ndex-rest-helm/README.md) lists every value.
+
+### Removed
+
+- **The static manifest `docker/k8s-ndex-deployment.yml`.** `make k8s-yml` now renders the same
+deployment from the chart into `dist/k8s-ndex-deployment.yml`, for `podman kube play`. The volume is
+still named `ndex-pvc`, so existing Podman installs keep their data.
 
 ## [3.0.8] - 2026-09-25
 

@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ndex.name" . }}
+  labels:
+    {{- include "ndex.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "ndex.selectorLabels" . | nindent 4 }}
+  ports:
+    - {name: http, port: {{ .Values.service.port }}, targetPort: ndex-rest, protocol: TCP}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ndex.name" . }}-keycloak
+  labels:
+    {{- include "ndex.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "ndex.selectorLabels" . | nindent 4 }}
+  ports:
+    - {name: http, port: {{ .Values.keycloakService.port }}, targetPort: keycloak-http, protocol: TCP}
