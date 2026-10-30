@@ -32,7 +32,7 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public abstract class NFSIndexManager<T> implements AutoCloseable {
+public abstract class NFSIndexManager<T> {
     protected final Logger logger = LoggerFactory.getLogger(this.getClass().getSimpleName());
 
 
@@ -138,13 +138,15 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
         } catch(IOException io){
             logger.error("Unable to commit document: " + io.getMessage(), io);
             //throw new RuntimeException("Failed to commit to Solr", io); // ADD THIS
+        } catch(NdexException ne){
+            logger.error("Unable to commit document: " + ne.getMessage(), ne);
         }
     }
 
-    public void commit() throws SolrServerException, IOException {
+    public void commit() throws SolrServerException, IOException, NdexException {
         commit(nfsCoreName);
     }
-    public void commit(String coreName) throws SolrServerException, IOException {
+    public void commit(String coreName) throws SolrServerException, IOException, NdexException {
         if ( !doc.isEmpty()) {
             /*
             logger.info("Committing doc to core [{}]:", coreName);
@@ -163,7 +165,7 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
         doc = new SolrInputDocument();
         postCommit();
     }
-    public void delete(String uuid) throws SolrServerException, IOException {
+    public void delete(String uuid) throws SolrServerException, IOException, NdexException {
 
         solrClientWrapper.delete(nfsCoreName, uuid, false);
     }
@@ -227,6 +229,8 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
             return rsp.getResults();
         } catch (BaseHttpSolrClient.RemoteSolrException e) {
             throw convertException(e, nfsCoreName);
+        } catch (SolrUnavailableException e) {
+            throw e;
         }
         catch (Exception e){
             throw new NdexException("Error accessing Solr: " + e.getMessage());
@@ -278,6 +282,8 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
             return rsp.getResults();
         } catch (BaseHttpSolrClient.RemoteSolrException e) {
             throw convertException(e, nfsCoreName);
+        } catch (SolrUnavailableException e) {
+            throw e;
         } catch (Exception e) {
             throw new NdexException("Error accessing Solr: " + e.getMessage());
         }
@@ -489,9 +495,5 @@ public abstract class NFSIndexManager<T> implements AutoCloseable {
         return SolrClause.escape(value);
     }
 
-    @Override
-    public void close () {
-        solrClientWrapper.close();
-    }
 
 }

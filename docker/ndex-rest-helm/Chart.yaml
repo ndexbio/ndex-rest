@@ -1,0 +1,12 @@
+apiVersion: v2
+name: ndex-rest-helm
+description: The NDEx REST server and its services (the image ndexbio/ndex-rest) on Kubernetes
+type: application
+# the chart's own version, released as ndex-rest-helm-v<version>
+version: 0.1.0
+# the ndex-rest image it deploys: an ndex-rest release published as ndexbio/ndex-rest:<appVersion>
+appVersion: "3.0.8"
+home: https://github.com/ndexbio/ndex-rest
+sources:
+  - https://github.com/ndexbio/ndex-rest/tree/main/docker/ndex-rest-helm
+keywords: [ndex, ndex-rest]

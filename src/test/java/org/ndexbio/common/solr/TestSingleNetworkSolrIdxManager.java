@@ -102,7 +102,7 @@ public class TestSingleNetworkSolrIdxManager {
 	 * empty and assert nothing.
 	 */
 	private static CommitRecord expectCommit(SolrClientWrapper wrapper)
-			throws SolrServerException, IOException {
+			throws SolrServerException, IOException, NdexException {
 
 		CommitRecord record = new CommitRecord();
 		wrapper.commit(eq(NETWORK_ID), anyObject(), anyBoolean());
@@ -439,20 +439,6 @@ public class TestSingleNetworkSolrIdxManager {
 		verify(wrapper);
 	}
 
-	@Test
-	public void closeClosesTheWrapperItOwns() throws Exception {
-		SolrClientWrapper wrapper = createMock(SolrClientWrapper.class);
-		wrapper.close();
-		expectLastCall();
-		replay(wrapper);
-
-		Cx2NodeIndexService svc = createMock(Cx2NodeIndexService.class);
-		replay(svc);
-
-		new SingleNetworkSolrIdxManager(NETWORK_ID, wrapper, svc).close();
-
-		verify(wrapper);
-	}
 
 	// ----------------------------------------------------- configSet variant
 
@@ -552,8 +538,5 @@ public class TestSingleNetworkSolrIdxManager {
 
 		@Override
 		public void delete(String coreName, String id, boolean commit) { /* unused */ }
-
-		@Override
-		public void close() { /* unused */ }
 	}
 }

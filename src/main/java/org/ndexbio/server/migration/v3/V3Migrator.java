@@ -126,7 +126,8 @@ public class V3Migrator implements AutoCloseable {
                 throw new NdexException("Failed to fetch user with username " + username);
             }
         }
-		try (FolderIndexManager indexManager = solrObjectFactory.getFolderIndexManager()){
+		FolderIndexManager indexManager = solrObjectFactory.getFolderIndexManager();
+		try {
 			indexManager.createCoreIfNeeded();
 		} catch (SolrServerException | IOException | NdexException e) {
 			logger.info("Failed to create core!");
@@ -151,9 +152,9 @@ public class V3Migrator implements AutoCloseable {
 		String sql = "SELECT \"UUID\", owneruuid, \"owner\", visibility "
 				+ "FROM network WHERE is_deleted = false";
 
+		GlobalNetworkIndexManager globalNetworkIndexManager = solrObjectFactory.getGlobalNetworkIndexManager();
 		try (PreparedStatement pst = db.prepareStatement(sql);
-			 ResultSet rs = pst.executeQuery();
-			 GlobalNetworkIndexManager globalNetworkIndexManager = solrObjectFactory.getGlobalNetworkIndexManager()) {
+			 ResultSet rs = pst.executeQuery()) {
 
 			while (rs.next()) {
 				UUID networkId = (UUID) rs.getObject(1);

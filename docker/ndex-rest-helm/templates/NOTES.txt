@@ -1,0 +1,13 @@
+NDEx {{ include "ndex.tag" . }} is starting in namespace {{ .Release.Namespace }}: its first start takes a few minutes.
+
+  kubectl -n {{ .Release.Namespace }} rollout status deploy/{{ include "ndex.name" . }}
+
+Reach it on localhost while these run (Keycloak issues its tokens as localhost:8085, so a
+login needs both):
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "ndex.name" . }} 8080:{{ .Values.service.port }}
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "ndex.name" . }}-keycloak 8085:{{ .Values.keycloakService.port }}
+
+  curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/v2/network   # expect 200
+
+Its data is on the PVC {{ include "ndex.claimName" . }}{{ if and (not .Values.storage.existingClaim) .Values.storage.keep }}, which `helm uninstall` keeps{{ end }}.

@@ -1093,37 +1093,36 @@ public class PostgresNetworkDAO extends NdexDBDAO implements NetworkDAO {
 		SearchScope scope = resolveSearchScope(loggedInUser == null ? null : loggedInUser.getExternalId(),
 				simpleNetworkQuery.getPermission() == Permissions.WRITE ? Permissions.WRITE : Permissions.READ);
 
-		try (GlobalNetworkIndexManager networkIdx =
-				Configuration.getInstance().getSolrObjectFactory().getGlobalNetworkIndexManager()) {
+		GlobalNetworkIndexManager networkIdx =
+				Configuration.getInstance().getSolrObjectFactory().getGlobalNetworkIndexManager();
 
-			// One query over one core. This used to be two — one per core — concatenated public-first,
-			// which summed numFound and paginated each core independently, so a request for `top` rows
-			// could return up to 2*top and page 2 repeated rows from page 1. The permission filter
-			// admits public documents, the caller's own, and whatever `scope` makes reachable, all in
-			// one relevance ranking.
-			SolrDocumentList searchResults = networkIdx.searchForNetworks(queryStr,
-					(loggedInUser == null ? null : loggedInUser.getUserName()),
-					top, skipBlocks * top,
-					simpleNetworkQuery.getAccountName(), simpleNetworkQuery.getPermission(), false,
-					scope);
+		// One query over one core. This used to be two — one per core — concatenated public-first,
+		// which summed numFound and paginated each core independently, so a request for `top` rows
+		// could return up to 2*top and page 2 repeated rows from page 1. The permission filter
+		// admits public documents, the caller's own, and whatever `scope` makes reachable, all in
+		// one relevance ranking.
+		SolrDocumentList searchResults = networkIdx.searchForNetworks(queryStr,
+				(loggedInUser == null ? null : loggedInUser.getUserName()),
+				top, skipBlocks * top,
+				simpleNetworkQuery.getAccountName(), simpleNetworkQuery.getPermission(), false,
+				scope);
 
-			List<NetworkSummary> results = new ArrayList<>(searchResults.size());
+		List<NetworkSummary> results = new ArrayList<>(searchResults.size());
 
-			for (SolrDocument d : searchResults) {
-				String id = (String) d.get(GlobalNetworkIndexManager.UUID);
-				try {
-					NetworkSummary s = getNetworkSummaryById(UUID.fromString(id));
-					if (s != null) {
-						s.setWarnings(emptyStringList);
-						results.add(s);
-					}
-				} catch (ObjectNotFoundException ne) {
-					logger.warning("Network " + id + " was not found in db: " + ne.getMessage());
+		for (SolrDocument d : searchResults) {
+			String id = (String) d.get(GlobalNetworkIndexManager.UUID);
+			try {
+				NetworkSummary s = getNetworkSummaryById(UUID.fromString(id));
+				if (s != null) {
+					s.setWarnings(emptyStringList);
+					results.add(s);
 				}
+			} catch (ObjectNotFoundException ne) {
+				logger.warning("Network " + id + " was not found in db: " + ne.getMessage());
 			}
-
-			return new NetworkSearchResult(searchResults.getNumFound(), searchResults.getStart(), results);
 		}
+
+		return new NetworkSearchResult(searchResults.getNumFound(), searchResults.getStart(), results);
 	}
 	
 

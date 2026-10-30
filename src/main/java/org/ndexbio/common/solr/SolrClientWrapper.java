@@ -13,7 +13,7 @@ import org.ndexbio.model.exceptions.NdexException;
  * 
  * @author churas
  */
-public interface SolrClientWrapper extends AutoCloseable {
+public interface SolrClientWrapper {
 	
 	/**
 	 * Creates core in Solr if it does not already exist
@@ -74,7 +74,7 @@ public interface SolrClientWrapper extends AutoCloseable {
 	 * @throws SolrServerException
 	 * @throws IOException
 	 */
-	void add(final String coreName, Collection<SolrInputDocument> documents) throws SolrServerException, IOException;
+	void add(final String coreName, Collection<SolrInputDocument> documents) throws SolrServerException, IOException, NdexException;
 
 	/**
 	 * Commits documents, choosing between a soft and a hard commit.
@@ -88,7 +88,7 @@ public interface SolrClientWrapper extends AutoCloseable {
 	 * @throws SolrServerException
 	 * @throws IOException
 	 */
-	void commit(final String coreName, Collection<SolrInputDocument> documents, boolean hardCommit) throws SolrServerException, IOException;
+	void commit(final String coreName, Collection<SolrInputDocument> documents, boolean hardCommit) throws SolrServerException, IOException, NdexException;
 
 	/**
 	 * Removes core from Solr completely (deletes filesystem data)
@@ -109,7 +109,7 @@ public interface SolrClientWrapper extends AutoCloseable {
 	 * @throws SolrServerException
 	 * @throws IOException 
 	 */
-	void commit(final String coreName, Collection<SolrInputDocument> documents) throws SolrServerException, IOException;
+	void commit(final String coreName, Collection<SolrInputDocument> documents) throws SolrServerException, IOException, NdexException;
 
 	/**
 	 * Delete index of object from core 
@@ -118,7 +118,7 @@ public interface SolrClientWrapper extends AutoCloseable {
 	 * @throws SolrServerException
 	 * @throws IOException 
 	 */
-	void delete(final String coreName, final String id, boolean commit) throws SolrServerException, IOException;
+	void delete(final String coreName, final String id, boolean commit) throws SolrServerException, IOException, NdexException;
 	
 	/**
 	 * Query Solr
@@ -128,10 +128,4 @@ public interface SolrClientWrapper extends AutoCloseable {
 	 * @throws NdexException 
 	 */
 	QueryResponse query(final String coreName, final SolrQuery query) throws IOException, SolrServerException, NdexException;
-	
-	/**
-	 * Close connection to Solr client
-	 */
-	@Override
-	void close();
 }

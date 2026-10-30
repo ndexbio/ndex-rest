@@ -8,6 +8,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.ndexbio.common.solr.SolrClientWrapper;
+import org.ndexbio.common.solr.SolrUnavailableException;
 import org.ndexbio.model.object.FileItemSummary;
 import org.ndexbio.model.object.FileSearchResult;
 import org.ndexbio.model.object.NdexFolder;
@@ -52,6 +53,30 @@ public class TestNFSSearchProvider {
     @AfterClass
     public static void tearDownClass() {
         Configuration.setInstance(savedInstance);
+    }
+
+    /**
+     * Solr being unreachable must reach the web layer as SolrUnavailableException (503), not be
+     * folded into the generic "Failed to fetch data about search results" NdexException (500).
+     */
+    @Test
+    public void testSearchFiles_PassesSolrUnavailabilityThrough() throws Exception {
+        SolrUnavailableException unavailable =
+                new SolrUnavailableException(new java.net.ConnectException("Connection refused"));
+        SolrClientWrapper mockWrapper = createMock(SolrClientWrapper.class);
+        expect(mockWrapper.query(anyString(), anyObject(SolrQuery.class))).andThrow(unavailable);
+        replay(mockWrapper);
+
+        NFSSearchProvider provider = new NFSSearchProvider(mockWrapper, 100);
+        SimpleFileQuery query = new SimpleFileQuery();
+        query.setSearchString("cancer");
+
+        try {
+            provider.searchFiles(query, null, null, 0, 10);
+            org.junit.Assert.fail("expected SolrUnavailableException");
+        } catch (SolrUnavailableException e) {
+            org.junit.Assert.assertSame(unavailable, e);
+        }
     }
 
     @Test

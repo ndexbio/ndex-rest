@@ -233,18 +233,19 @@ public class UserStatsMailer implements AutoCloseable {
 		if (args.length == 1 && args[0].equals("test"))
 			testOnly = true;
 	//	SolrIndexBuilder i = new SolrIndexBuider();
-		Configuration configuration = Configuration.createInstance();
+		try (Configuration configuration = Configuration.createInstance()) {
 
-		String statsDBConnStr = configuration.getStatsDBLink();
-		if ( statsDBConnStr == null)
-			throw new Exception ("DBLink for stats db is not defined in NDEx server config file.");
-		
-		NdexDatabase.createNdexDatabase(configuration.getDBURL(), configuration.getDBUser(),
-				configuration.getDBPasswd(), 10);
-		
-		
-		try (UserStatsMailer mailer = new UserStatsMailer(statsDBConnStr)) {
-		    mailer.sendMailsToUsers(testOnly);
+			String statsDBConnStr = configuration.getStatsDBLink();
+			if ( statsDBConnStr == null)
+				throw new Exception ("DBLink for stats db is not defined in NDEx server config file.");
+			
+			NdexDatabase.createNdexDatabase(configuration.getDBURL(), configuration.getDBUser(),
+					configuration.getDBPasswd(), 10);
+			
+			
+			try (UserStatsMailer mailer = new UserStatsMailer(statsDBConnStr)) {
+			    mailer.sendMailsToUsers(testOnly);
+			}
 		}
 		
 	 

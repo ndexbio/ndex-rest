@@ -61,81 +61,148 @@ docker stop ndex
 docker rm -f ndex
 ```
 
-# NDEx Kubernetes / Podman Deployment
+# NDEx on Kubernetes with Helm
 
-Deploy the full NDEx monolithic stack on Kubernetes or Podman using
-`docker/k8s-ndex-deployment.yml`. The manifest bundles a PersistentVolume,
-PersistentVolumeClaim, Deployment (with an init container that seeds the
-`/data/ndex` sub-directories), and a ClusterIP Service — all in one file.
+The full NDEx monolithic stack is deployed with the Helm chart `ndex-rest-helm`, which is published as an OCI artifact on Docker Hub at `oci://registry-1.docker.io/ndexbio/ndex-rest-helm`. Helm installs it straight from there: you don't need `helm repo add` or a login. The chart's versions are the tags of [`ndexbio/ndex-rest-helm`](https://hub.docker.com/r/ndexbio/ndex-rest-helm/tags). Each chart's `appVersion` is the `ndexbio/ndex-rest` image it deploys. [The chart's README](ndex-rest-helm/README.md) describes every value.
 
 ## Prerequisites
 
-- **kubectl** (Kubernetes) or **podman** ≥ 4.x with `play kube` support
-- A storage class named `default` that binds hostPath volumes, **or** a cluster
-  node with at least 512 GB available at `/data/ndex`
-- The `ndexbio/ndex-rest` image accessible from your cluster / Podman daemon
+- Helm 3.8 or later, or Helm 4, and `kubectl`
+- A default StorageClass that provisions volumes dynamically. If the cluster has none, set `storage.className`.
+- 512 GiB for the volume (`storage.size`)
+
+## Get the chart
+
+```bash
+CHART=oci://registry-1.docker.io/ndexbio/ndex-rest-helm
+helm show chart  $CHART --version <chart version>   # its appVersion is the image
+helm show values $CHART --version <chart version>   # every setting
+```
+
+To build the chart from this repository instead, run `make helm-package`. It writes `dist/ndex-rest-helm-<chart version>.tgz`, and you can use that file wherever these steps use `$CHART`.
 
 ## Deploy
 
-**kubectl:**
 ```bash
-kubectl apply -f docker/k8s-ndex-deployment.yml
+helm install ndex $CHART --version <chart version> -n ndex --create-namespace [-f values.yaml]
 ```
 
-**podman:**
-```bash
-podman play kube docker/k8s-ndex-deployment.yml
+Everything is named after the release, `ndex`:
+
+- the Deployment `ndex`;
+- the PersistentVolumeClaim `ndex-pvc`, mounted on `/apps`;
+- the Services `ndex` (port 8080) and `ndex-keycloak` (port 8085).
+
+An init container creates the following directories on the volume before the main container starts:
+
+```
+/apps/
+├── ndex/config      ndex/data
+├── postgres/config  postgres/data
+├── keycloak/config  keycloak/data
+├── solr/config      solr/data
+└── mailhog/config
 ```
 
-The init container runs once and creates the following sub-directories under
-`/data/ndex` on the host before the main container starts:
-
-```
-/data/ndex/
-├── ndex-config        → /apps/ndex/config
-├── ndex-data          → /apps/ndex/data
-├── postgres-config    → /apps/postgres/config
-├── postgres-data      → /apps/postgres/data
-├── keycloak-config    → /apps/keycloak/config
-├── keycloak-data      → /apps/keycloak/data
-├── solr-config        → /apps/solr/config
-├── solr-data          → /apps/solr/data
-└── mailhog-config     → /apps/mailhog/config
-```
-
-On first boot, default configs are seeded automatically from the image into each
-`/apps/<svc>/config/` directory (same first-boot behaviour as `docker run`).
+On first boot, default configs are copied from the image into each `/apps/<svc>/config/` directory, the same as with `docker run`.
 
 ## Verify
 
 ```bash
-# kubectl — forward the ClusterIP port locally
-kubectl get pods -l app=ndex
-kubectl port-forward svc/ndex 8080:8080
+kubectl -n ndex rollout status deploy/ndex
+kubectl -n ndex port-forward svc/ndex 8080:8080 &
+kubectl -n ndex port-forward svc/ndex-keycloak 8085:8085 &
 curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/v2/network
 # Expect: 200
-
-# podman
-podman pod ps
-podman logs -f ndex
 ```
 
-Wait for `NDEx Deploy Container Ready!` in the logs before querying the API.
+Keycloak issues its tokens as `http://localhost:8085`, so logging in needs both port-forwards. The first start takes a few minutes. Wait for `NDEx Deploy Container Ready!` in `kubectl -n ndex logs deploy/ndex` before querying the API.
+
+## Upgrade
+
+```bash
+helm upgrade ndex $CHART --version <new chart version> -n ndex [-f values.yaml]
+```
+
+All state is on one ReadWriteOnce volume, so the pod is replaced rather than rolled, which causes a short outage. To run an image other than the chart's `appVersion`, set `image.tag`. To track `latest`, use `--set image.tag=latest --set image.pullPolicy=Always`.
+
+> **Never run an image older than the last one the volume ran.** The database schema upgrade only moves forward. An older image changes nothing and runs against the newer schema without any warning.
+
+## Move an install made with `kubectl apply` to Helm
+
+An install made with `kubectl apply` keeps its data on the PVC `ndex-pvc`. The chart mounts that PVC through `storage.existingClaim`, and it has to be installed in the PVC's namespace.
+
+1. Find the PVC's namespace (usually `default`):
+   ```bash
+   kubectl get pvc -A | grep ndex-pvc
+   ```
+2. In that namespace, delete the old Deployment and Services. The PVC and its data stay:
+   ```bash
+   kubectl -n <namespace> delete deploy/ndex svc/ndex svc/keycloak
+   ```
+3. Install the chart in the same namespace, on that PVC:
+   ```bash
+   helm install ndex $CHART --version <chart version> -n <namespace> --set storage.existingClaim=ndex-pvc
+   ```
+   If the old Deployment ran an image newer than the chart's `appVersion`, such as `latest`, also pass `--set image.tag=<that version or newer>`.
+4. Point anything that referred to the Service `keycloak`, such as your own Ingress, at `ndex-keycloak`.
 
 ## Teardown
 
-**kubectl:**
 ```bash
-kubectl delete -f docker/k8s-ndex-deployment.yml
+helm uninstall ndex -n ndex
 ```
 
-**podman:**
+The PVC `ndex-pvc` and its data are **kept**. To delete the data as well, run `kubectl -n ndex delete pvc ndex-pvc` after the uninstall.
+
+---
+
+# NDEx on Podman
+
+Podman runs the same deployment from a plain manifest, which is rendered from the Helm chart.
+
+## Prerequisites
+
+- podman 4 or later
+- A checkout of this repository, plus `make`, `curl` and `tar`. These work as-is on Linux and macOS; on Windows, use WSL.
+
+## Generate the manifest
+
 ```bash
-podman play kube --down docker/k8s-ndex-deployment.yml
+make k8s-yml
 ```
 
-> **Note:** The PersistentVolume uses `persistentVolumeReclaimPolicy: Retain`.
-> Host data under `/data/ndex` is **not** deleted on teardown.
+This writes `dist/k8s-ndex-deployment.yml`. The first run downloads the pinned version of helm into `.tools/`. The manifest deploys the chart's `appVersion` image. If the `ndex-pvc` volume last ran a newer image, edit the file's `image:` lines to that version or newer, because the schema upgrade only moves forward.
+
+## Deploy
+
+```bash
+podman kube play --publish 8080:8080 --publish 8085:8085 dist/k8s-ndex-deployment.yml
+```
+
+Podman publishes only the ports you name with `--publish`. Port 8080 is the REST API, and port 8085 is Keycloak, which logins need on `localhost:8085`. All data is kept in the Podman volume `ndex-pvc`.
+
+## Verify
+
+```bash
+podman pod ps
+podman pod logs -f ndex-pod
+```
+
+Wait for `NDEx Deploy Container Ready!` in the logs, then:
+
+```bash
+curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/v2/network
+# Expect: 200
+```
+
+## Teardown
+
+```bash
+podman kube play --down dist/k8s-ndex-deployment.yml
+```
+
+The volume `ndex-pvc` and its data are kept. To delete them as well, run `podman volume rm ndex-pvc`.
 
 ---
 

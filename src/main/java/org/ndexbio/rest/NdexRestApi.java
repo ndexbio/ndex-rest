@@ -47,6 +47,7 @@ import org.ndexbio.rest.exceptions.mappers.ForbiddenExceptionMapper;
 import org.ndexbio.rest.exceptions.mappers.NdexExceptionMapper;
 import org.ndexbio.rest.exceptions.mappers.NotSupportedExceptionMapper;
 import org.ndexbio.rest.exceptions.mappers.ObjectNotFoundExceptionMapper;
+import org.ndexbio.rest.exceptions.mappers.SolrUnavailableExceptionMapper;
 import org.ndexbio.rest.exceptions.mappers.UnauthorizedOperationExceptionMapper;
 //import org.ndexbio.rest.exceptions.mappers.ForbiddenOperationExceptionMapper;
 import org.ndexbio.rest.filters.BasicAuthenticationFilter;
@@ -119,6 +120,7 @@ public class NdexRestApi extends Application
         _providers.add(new UnauthorizedOperationExceptionMapper());
         _providers.add(new ForbiddenExceptionMapper());
         _providers.add(new BadRequestExceptionMapper());
+        _providers.add(new SolrUnavailableExceptionMapper());
         _providers.add(new NotSupportedExceptionMapper());
         _providers.add(new DefaultExceptionMapper());
         

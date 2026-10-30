@@ -19,12 +19,9 @@ import org.ndexbio.model.object.FileType;
 import org.ndexbio.model.object.Permissions;
 import org.ndexbio.model.object.network.NetworkSummary;
 import org.ndexbio.model.object.network.VisibilityType;
-import org.ndexbio.model.tools.TermUtilities;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.*;
 
 public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
@@ -128,7 +125,6 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
         return doc;
     }
 
-
     @Override
     public void postCommit(){
         nodeMembers = new TreeMap<>();
@@ -196,7 +192,7 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
         }
         Object represents= nodeAttrs.get(CxNode.REPRESENTS);
         if ( represents != null) {
-            for (String indexableString : getIndexableString((String)represents)) {
+            for (String indexableString : NodeIndexFields.getIndexableString((String)represents)) {
                 doc.addField(REPRESENTS, indexableString);
             }
         }
@@ -218,7 +214,7 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
             List<String> memberGenes = NodeIndexFields.getSplitableTerms (NodeIndexFields.MEMBER,
                     node, attributeNameMapping);
             for ( String memberIdStr : memberGenes) {
-                for ( String indexableString : getIndexableString(memberIdStr) ){
+                for ( String indexableString : NodeIndexFields.getIndexableString(memberIdStr) ){
                     doc.addField(REPRESENTS, indexableString);
                 }
             }
@@ -226,30 +222,14 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
 
     }
 
-
     public void addFunctionTermToIndex(FunctionTermElement e)  {
 
-        for ( String term : getIndexableStringsFromFunctionTerm(e)) {
+        for ( String term : NodeIndexFields.getIndexableStringsFromFunctionTerm(e)) {
 
             doc.addField(REPRESENTS, term);
         }
 
     }
-
-    protected static List<String> getIndexableStringsFromFunctionTerm(FunctionTermElement e)  {
-
-        List<String> terms = getIndexableString(e.getFunctionName());
-        for (Object arg: e.getArgs()) {
-            if (arg instanceof String ) {
-                terms.addAll(getIndexableString((String)arg));
-            } else if ( arg instanceof FunctionTermElement ){
-                terms.addAll(getIndexableStringsFromFunctionTerm((FunctionTermElement)arg));
-            }
-        }
-
-        return terms;
-    }
-
 
     public List<String> addCXNetworkAttrToIndex(NetworkAttributesElement e)  {
 
@@ -278,12 +258,11 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
         if ( node.getNodeName() != null )
             doc.addField(NODE_NAME, node.getNodeName());
         if ( node.getNodeRepresents() !=null ) {
-            for (String indexableString : getIndexableString(node.getNodeRepresents())) {
+            for (String indexableString : NodeIndexFields.getIndexableString(node.getNodeRepresents())) {
                 doc.addField(REPRESENTS, indexableString);
             }
             //     if( indexableString !=null)
         }
-
 
     }
     public void addCXNodeAttrToIndex(NodeAttributesElement e)  {
@@ -291,13 +270,13 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
         if ( e.getName().equals(NdexClasses.Node_P_alias)) {
             if ( e.getDataType() == ATTRIBUTE_DATA_TYPE.LIST_OF_STRING  && !e.getValues().isEmpty()) {
                 for ( String v : e.getValues()) {
-                    for ( String indexableString : getIndexableString(v) ){
+                    for ( String indexableString : NodeIndexFields.getIndexableString(v) ){
                         doc.addField(ALIASES, indexableString);
                     }
                 }
             } else if ( e.getDataType() == ATTRIBUTE_DATA_TYPE.STRING) {
                 String v = e.getValue();
-                for ( String indexableString : getIndexableString(v) ){
+                for ( String indexableString : NodeIndexFields.getIndexableString(v) ){
                     doc.addField(ALIASES, indexableString);
                 }
             }
@@ -308,7 +287,7 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
                     Set<String> members = nodeMembers.get(e.getPropertyOf());
                     if ( members != null) {  // saw the member attribute on this node before
                         for ( String memberIdStr : members) {
-                            for ( String indexableString : getIndexableString(memberIdStr) ){
+                            for ( String indexableString : NodeIndexFields.getIndexableString(memberIdStr) ){
                                 doc.addField(REPRESENTS, indexableString);
                             }
                         }
@@ -324,7 +303,7 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
                 Set<String> members = nodeMembers.get(e.getPropertyOf());
                 if ( members != null) {  // this node is proteinfamily or complex
                     for ( String memberIdStr : e.getValues()) {
-                        for ( String indexableString : getIndexableString(memberIdStr) ){
+                        for ( String indexableString : NodeIndexFields.getIndexableString(memberIdStr) ){
                             doc.addField(REPRESENTS, indexableString);
                         }
                     }
@@ -391,51 +370,4 @@ public class GlobalNetworkIndexManager extends NFSIndexManager<NetworkSummary> {
             warnings.add("Network attribute " + e.getName() + " is not indexed because its data type is not 'string' or 'list_of_string'.");
     }
 
-    protected static List<String> getIndexableString(String termString) {
-
-        // case 1 : termString is a URI
-        // example: http://identifiers.org/uniprot/P19838
-        // treat the last element in the URI as the identifier and the rest as
-        // prefix string. Just to help the future indexing.
-        //
-        List<String> result = new ArrayList<>(2) ;
-        String identifier = null;
-        if ( termString.length() > 10 && (termString.substring(0, 7).equalsIgnoreCase("http://") ||
-                termString.substring(0, 8).equalsIgnoreCase("https://") )&&
-                (!termString.endsWith("/"))) {
-            try {
-                URI termStringURI = new URI(termString);
-                identifier = termStringURI.getFragment();
-
-                if ( identifier == null ) {
-                    String path = termStringURI.getPath();
-                    if (path != null && path.indexOf("/") != -1) {
-                        int pos = termString.lastIndexOf('/');
-                        identifier = termString.substring(pos + 1);
-                    } else
-                        return result; // the string is a URL in the format that we don't want to index it in Solr.
-                }
-                result.add(identifier);
-                return result;
-
-            } catch (URISyntaxException e) {
-                // ignore and move on to next case
-            }
-        }
-
-        String[] termStringComponents = TermUtilities.getNdexQName(termString);
-        if (termStringComponents != null && termStringComponents.length == 2) {
-            // case 2: termString is of the form (NamespacePrefix:)*Identifier
-            //     if ( !termStringComponents[0].contains(" "))
-            result.add(termString);
-            result.add(termStringComponents[1]);
-            return  result;
-        }
-
-        // case 3: termString cannot be parsed, use it as the identifier.
-        // so leave the prefix as null and return the string
-        result.add(termString);
-        return result;
-
-    }
 }

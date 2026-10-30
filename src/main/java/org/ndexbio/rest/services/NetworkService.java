@@ -65,6 +65,8 @@ import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.jboss.resteasy.plugins.providers.multipart.InputPart;
@@ -74,6 +76,7 @@ import org.ndexbio.common.cx.CXNetworkFileGenerator;
 import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.TaskDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
+import org.ndexbio.common.solr.SolrUnavailableException;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.cxio.aspects.datamodels.ATTRIBUTE_DATA_TYPE;
 import org.ndexbio.cxio.aspects.datamodels.NetworkAttributesElement;
@@ -558,6 +561,9 @@ public class NetworkService extends NdexService {
 	@PermitAll
 	@Path("/textsearch/{start}/{size}")
 	@Produces("application/json")
+	@ApiResponse(responseCode = "200", description = "The matching networks and the total hit count")
+	@ApiResponse(responseCode = "500", description = "Server error")
+	@ApiResponse(responseCode = "503", description = "Search service unavailable; retry later")
 	public NetworkSearchResult searchNetwork_solr(
 			final SimpleNetworkQuery query,
 			@PathParam("start") final int skipBlocks,
@@ -572,6 +578,8 @@ public class NetworkService extends NdexService {
 			NetworkSearchResult result = dao.findNetworks(query, skipBlocks, blockSize, this.getLoggedInUser());
 			return result;
 
+        } catch (SolrUnavailableException e) {
+        	throw e;
         } catch (Exception e) {
         	throw new NdexException(e.getMessage());
         }

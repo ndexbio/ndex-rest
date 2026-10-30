@@ -5,7 +5,6 @@ import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
 import org.easymock.Capture;
-import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
@@ -55,12 +54,6 @@ public class TestGlobalNetworkIndexManager {
         Configuration.setInstance(savedInstance);
     }
 
-    @After
-    public void tearDown() {
-        if (manager != null) {
-            manager.close();
-        }
-    }
 
     private GlobalNetworkIndexManager createManagerWithMock() {
         mockWrapper = createNiceMock(SolrClientWrapper.class);
@@ -427,7 +420,6 @@ public class TestGlobalNetworkIndexManager {
 
         mockWrapper.commit(capture(coreCapture), anyObject(Collection.class));
         expectLastCall().once();
-        mockWrapper.close();
         expectLastCall().anyTimes();
         replay(mockWrapper);
 
@@ -443,7 +435,6 @@ public class TestGlobalNetworkIndexManager {
         reset(mockWrapper);
         mockWrapper.commit(capture(coreCapture), anyObject(Collection.class));
         expectLastCall().once();
-        mockWrapper.close();
         expectLastCall().anyTimes();
         replay(mockWrapper);
 
@@ -461,7 +452,6 @@ public class TestGlobalNetworkIndexManager {
 
         mockWrapper.commit(capture(coreCapture), anyObject(Collection.class));
         expectLastCall().once();
-        mockWrapper.close();
         expectLastCall().anyTimes();
         replay(mockWrapper);
 
@@ -478,7 +468,6 @@ public class TestGlobalNetworkIndexManager {
         reset(mockWrapper);
         mockWrapper.commit(capture(coreCapture), anyObject(Collection.class));
         expectLastCall().once();
-        mockWrapper.close();
         expectLastCall().anyTimes();
         replay(mockWrapper);
 
@@ -501,7 +490,6 @@ public class TestGlobalNetworkIndexManager {
 
         mockWrapper.delete(capture(coreCapture), capture(uuidCapture), eq(false));
         expectLastCall().once();
-        mockWrapper.close();
         expectLastCall().anyTimes();
         replay(mockWrapper);
 
@@ -532,7 +520,6 @@ public class TestGlobalNetworkIndexManager {
         Capture<SolrQuery> queryCapture = Capture.newInstance();
         expect(mockWrapper.query(capture(coreCapture), capture(queryCapture)))
                 .andReturn(mockResponse);
-        mockWrapper.close();
         expectLastCall().anyTimes();
         replay(mockWrapper);
 
@@ -567,7 +554,6 @@ public class TestGlobalNetworkIndexManager {
         Capture<SolrQuery> queryCapture = Capture.newInstance();
         expect(mockWrapper.query(eq(NFSIndexManager.nfsCoreName), capture(queryCapture)))
                 .andReturn(mockResponse);
-        mockWrapper.close();
         expectLastCall().anyTimes();
         replay(mockWrapper);
 
@@ -593,7 +579,6 @@ public class TestGlobalNetworkIndexManager {
         Capture<SolrQuery> queryCapture = Capture.newInstance();
         expect(mockWrapper.query(anyString(), capture(queryCapture)))
                 .andReturn(mockResponse);
-        mockWrapper.close();
         expectLastCall().anyTimes();
         replay(mockWrapper);
 
@@ -617,7 +602,6 @@ public class TestGlobalNetworkIndexManager {
         Capture<SolrQuery> queryCapture = Capture.newInstance();
         expect(mockWrapper.query(anyString(), capture(queryCapture)))
                 .andReturn(mockResponse);
-        mockWrapper.close();
         expectLastCall().anyTimes();
         replay(mockWrapper);
 
@@ -642,7 +626,6 @@ public class TestGlobalNetworkIndexManager {
         Capture<SolrQuery> queryCapture = Capture.newInstance();
         expect(mockWrapper.query(eq(NFSIndexManager.nfsCoreName), capture(queryCapture)))
                 .andReturn(mockResponse);
-        mockWrapper.close();
         expectLastCall().anyTimes();
         replay(mockWrapper);
 
@@ -670,7 +653,6 @@ public class TestGlobalNetworkIndexManager {
         Capture<SolrQuery> queryCapture = Capture.newInstance();
         expect(mockWrapper.query(eq(NFSIndexManager.nfsCoreName), capture(queryCapture)))
                 .andReturn(mockResponse);
-        mockWrapper.close();
         expectLastCall().anyTimes();
         replay(mockWrapper);
 
@@ -696,7 +678,6 @@ public class TestGlobalNetworkIndexManager {
         Capture<SolrQuery> queryCapture = Capture.newInstance();
         expect(mockWrapper.query(eq(NFSIndexManager.nfsCoreName), capture(queryCapture)))
                 .andReturn(mockResponse);
-        mockWrapper.close();
         expectLastCall().anyTimes();
         replay(mockWrapper);
 
@@ -722,7 +703,6 @@ public class TestGlobalNetworkIndexManager {
         Capture<SolrQuery> queryCapture = Capture.newInstance();
         expect(mockWrapper.query(eq(NFSIndexManager.nfsCoreName), capture(queryCapture)))
                 .andReturn(mockResponse);
-        mockWrapper.close();
         expectLastCall().anyTimes();
         replay(mockWrapper);
 
@@ -758,7 +738,6 @@ public class TestGlobalNetworkIndexManager {
         Capture<SolrQuery> queryCapture = Capture.newInstance();
         expect(mockWrapper.query(anyString(), capture(queryCapture)))
                 .andReturn(mockResponse);
-        mockWrapper.close();
         expectLastCall().anyTimes();
         replay(mockWrapper);
 
@@ -783,7 +762,6 @@ public class TestGlobalNetworkIndexManager {
         Capture<SolrQuery> queryCapture = Capture.newInstance();
         expect(mockWrapper.query(anyString(), capture(queryCapture)))
                 .andReturn(mockResponse);
-        mockWrapper.close();
         expectLastCall().anyTimes();
         replay(mockWrapper);
 
@@ -812,7 +790,6 @@ public class TestGlobalNetworkIndexManager {
         Capture<SolrQuery> queryCapture = Capture.newInstance();
         expect(mockWrapper.query(anyString(), capture(queryCapture)))
                 .andReturn(mockResponse);
-        mockWrapper.close();
         expectLastCall().anyTimes();
         replay(mockWrapper);
 
@@ -1011,7 +988,6 @@ public class TestGlobalNetworkIndexManager {
         assertTrue(networkResult.contains("ndexScore"));
         assertFalse(folderResult.contains("ndexScore"));
 
-        folderMgr.close();
     }
 
     // ========================================================================
@@ -1237,7 +1213,6 @@ public class TestGlobalNetworkIndexManager {
 
         assertEquals(1, results.getNumFound());
 
-        folderMgr.close();
     }
 
     // ========================================================================
@@ -1256,7 +1231,6 @@ public class TestGlobalNetworkIndexManager {
         Capture<SolrQuery> queryCapture = Capture.newInstance();
         expect(mockWrapper.query(eq(NFSIndexManager.nfsCoreName), capture(queryCapture)))
                 .andReturn(mockResponse);
-        mockWrapper.close();
         expectLastCall().anyTimes();
         replay(mockWrapper);
 
@@ -1286,7 +1260,6 @@ public class TestGlobalNetworkIndexManager {
         Capture<SolrQuery> queryCapture = Capture.newInstance();
         expect(mockWrapper.query(eq(NFSIndexManager.nfsCoreName), capture(queryCapture)))
                 .andReturn(mockResponse);
-        mockWrapper.close();
         expectLastCall().anyTimes();
         replay(mockWrapper);
 
@@ -1314,7 +1287,6 @@ public class TestGlobalNetworkIndexManager {
         Capture<SolrQuery> queryCapture = Capture.newInstance();
         expect(mockWrapper.query(eq(NFSIndexManager.nfsCoreName), capture(queryCapture)))
                 .andReturn(mockResponse);
-        mockWrapper.close();
         expectLastCall().anyTimes();
         replay(mockWrapper);
 
