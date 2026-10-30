@@ -53,6 +53,7 @@ import org.apache.http.client.ClientProtocolException;
 import org.ndexbio.common.models.dao.postgresql.RequestDAO;
 import org.ndexbio.common.models.dao.postgresql.TaskDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
+import org.ndexbio.common.solr.SolrObjectFactory;
 import org.ndexbio.common.solr.UserIndexManager;
 import org.ndexbio.common.util.Util;
 import org.ndexbio.model.exceptions.NdexException;
@@ -81,6 +82,7 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.google.common.base.Preconditions;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 
 @Path("/user")
 public class UserService extends NdexService {
@@ -91,6 +93,8 @@ public class UserService extends NdexService {
 	
 //	static Logger logger = LoggerFactory.getLogger(UserService.class);
 
+	private final SolrObjectFactory solrObjectFactory;
+
 	/**************************************************************************
 	 * Injects the HTTP request into the base class to be used by
 	 * getLoggedInUser().
@@ -100,6 +104,7 @@ public class UserService extends NdexService {
 	 **************************************************************************/
 	public UserService(@Context HttpServletRequest httpRequest) {
 		super(httpRequest);
+		this.solrObjectFactory = Configuration.getInstance().getSolrObjectFactory();
 	}
 	
 	/**************************************************************************
@@ -118,6 +123,9 @@ public class UserService extends NdexService {
 	@Path("/{userid}/verify/{verificationCode}")
 	@NdexOpenFunction
 //	@Produces("application/json")
+	@ApiResponse(responseCode = "200", description = "The account was verified")
+	@ApiResponse(responseCode = "500", description = "Server error")
+	@ApiResponse(responseCode = "503", description = "Search service unavailable; retry later")
 	public String verifyUser(@PathParam("userid") String userUUID,
 //					@PathParam("accountName") String accountName, 
 					@PathParam("verificationCode") String verificationCode
@@ -131,10 +139,9 @@ public class UserService extends NdexService {
 			UUID userId = UUID.fromString(userUUID);
 			String accountName = userdao.verifyUser(userId, verificationCode);
 			User u = userdao.getUserById(userId, true,false);
-			try (UserIndexManager mgr = new UserIndexManager() ) {
+			UserIndexManager mgr = solrObjectFactory.getUserIndexManager();
 			mgr.addUser(userUUID, u.getUserName(), u.getFirstName(), u.getLastName(), u.getDisplayName(), u.getDescription());
 			userdao.commit();
-			}
 		//	logger.info("[end: User {} verified ]", userUUID);
 			return // userdao.getUserById(UUID.fromString(userUUID));
 					"User account " + accountName + " has been activated."; 
@@ -145,6 +152,9 @@ public class UserService extends NdexService {
 	@PermitAll
 	@NdexOpenFunction
 	@Produces("application/json")
+	@ApiResponse(responseCode = "200", description = "The created user")
+	@ApiResponse(responseCode = "500", description = "Server error")
+	@ApiResponse(responseCode = "503", description = "Search service unavailable; retry later")
 	public User createUser(final User newUser)
 			throws Exception {
 
@@ -179,9 +189,8 @@ public class UserService extends NdexService {
 			User user = userdao.createNewUser(newUser, verificationCode);
 			
 			if ( verificationCode == null) {
-				try (UserIndexManager mgr = new UserIndexManager()) {
-					mgr.addUser(user.getExternalId().toString(), user.getUserName(), user.getFirstName(), user.getLastName(), user.getDisplayName(), user.getDescription());
-				}
+				UserIndexManager mgr = solrObjectFactory.getUserIndexManager();
+				mgr.addUser(user.getExternalId().toString(), user.getUserName(), user.getFirstName(), user.getLastName(), user.getDisplayName(), user.getDescription());
 			}
 			
 			userdao.commit();
@@ -607,16 +616,18 @@ public class UserService extends NdexService {
 	@DELETE
 	@Produces("application/json")
 
+	@ApiResponse(responseCode = "204", description = "The user was deleted")
+	@ApiResponse(responseCode = "500", description = "Server error")
+	@ApiResponse(responseCode = "503", description = "Search service unavailable; retry later")
 	public void deleteUser() throws Exception {
 
 	//	logger.info("[start: Deleting user (self).]");
 		
 		try (UserDAO dao = new UserDAO()) {
 			dao.deleteUserById(getLoggedInUser().getExternalId());
-			try (UserIndexManager mgr = new UserIndexManager()) {
-				mgr.deleteUser(getLoggedInUser().getExternalId().toString());
-				dao.commit();
-			}
+			UserIndexManager mgr = solrObjectFactory.getUserIndexManager();
+			mgr.deleteUser(getLoggedInUser().getExternalId().toString());
+			dao.commit();
 //			logger.info("[end: User {} deleted]", getLoggedInUser().getUserName());
 		} 
 	}
@@ -634,6 +645,9 @@ public class UserService extends NdexService {
 	@Path("/search/{start}/{size}")
 	@Produces("application/json")
 	
+	@ApiResponse(responseCode = "200", description = "The matching users and the total hit count")
+	@ApiResponse(responseCode = "500", description = "Server error")
+	@ApiResponse(responseCode = "503", description = "Search service unavailable; retry later")
 	public SolrSearchResult<User> findUsers(SimpleQuery simpleUserQuery, 
 			@PathParam("start") final int skipBlocks, 
 			@PathParam("size") final int blockSize)
@@ -662,6 +676,9 @@ public class UserService extends NdexService {
 	@POST
 	@Path("/{userid}")
 	@Produces("application/json")
+	@ApiResponse(responseCode = "200", description = "The updated user")
+	@ApiResponse(responseCode = "500", description = "Server error")
+	@ApiResponse(responseCode = "503", description = "Search service unavailable; retry later")
 	public User updateUser(@PathParam("userid") final String userId, final User updatedUser)
 			throws Exception {
 		Preconditions.checkArgument(null != updatedUser, 
@@ -686,11 +703,10 @@ public class UserService extends NdexService {
 		
 		try (UserDAO dao = new UserDAO ()){
 			User user = dao.updateUser(updatedUser, getLoggedInUser().getExternalId());
-			try (UserIndexManager mgr = new UserIndexManager()) {
-				mgr.updateUser(userId, user.getUserName(), user.getFirstName(), user.getLastName(),
-						user.getDisplayName(), user.getDescription());
-				dao.commit();
-			}
+			UserIndexManager mgr = solrObjectFactory.getUserIndexManager();
+			mgr.updateUser(userId, user.getUserName(), user.getFirstName(), user.getLastName(),
+					user.getDisplayName(), user.getDescription());
+			dao.commit();
 	//		logger.info("[end: User {} updated]", updatedUser.getUserName());
 			return user;
 		} 

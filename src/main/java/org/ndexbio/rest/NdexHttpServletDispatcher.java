@@ -43,9 +43,7 @@ import jakarta.servlet.ServletContext;
 import org.jboss.resteasy.plugins.server.servlet.HttpServletDispatcher;
 import org.ndexbio.common.access.NdexDatabase;
 import org.ndexbio.common.models.dao.postgresql.TaskDAO;
-import org.ndexbio.common.solr.GlobalNetworkIndexManager;
-import org.ndexbio.common.solr.NetworkGlobalIndexManager;
-import org.ndexbio.common.solr.UserIndexManager;
+import org.ndexbio.common.solr.SolrObjectFactory;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.Task;
 import org.ndexbio.model.object.network.VisibilityType;
@@ -112,17 +110,10 @@ public class NdexHttpServletDispatcher extends HttpServletDispatcher {
     	
 			logger.info("Db created for " + configuration.getDBURL() + " and thread: " + Thread.currentThread().getName());
 
-			// create solr core for network indexes if needed.
-			try (NetworkGlobalIndexManager mgr = new NetworkGlobalIndexManager()) {
-				mgr.createCoreIfNotExists();
-			}
-			try (GlobalNetworkIndexManager mgr = Configuration.getInstance().getSolrObjectFactory().getGlobalNetworkIndexManager()) {
-				mgr.createCoreIfNeeded();
-			}
-
-			try (UserIndexManager umgr = new UserIndexManager()) {
-				umgr.createCoreIfNotExists();
-			}
+			// create solr cores for file and user indexes if needed.
+			SolrObjectFactory solrObjectFactory = configuration.getSolrObjectFactory();
+			solrObjectFactory.getGlobalNetworkIndexManager().createCoreIfNeeded();
+			solrObjectFactory.getUserIndexManager().createCoreIfNotExists();
 
 		/*	try (UserDocDAO dao = new UserDocDAO(db.getAConnection())) {
     	

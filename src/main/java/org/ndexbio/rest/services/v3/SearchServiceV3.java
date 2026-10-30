@@ -80,6 +80,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.Parameter;
 import org.ndexbio.common.models.search.SearchProvider;
+import org.ndexbio.common.models.search.SearchProviderFactory;
+import org.ndexbio.common.solr.SolrObjectFactory;
 
 @Path("/v3/search")
 
@@ -89,8 +91,23 @@ public class SearchServiceV3 extends NdexService  {
 	
 	static final HashMap<String,Object> EMPTYOBJECT = new HashMap<>();
 	
+	private final SolrObjectFactory solrObjectFactory;
+	private final SearchProviderFactory searchProviderFactory;
+
 	public SearchServiceV3(@Context HttpServletRequest httpRequest) {
+		this(httpRequest, Configuration.getInstance().getSolrObjectFactory(),
+				Configuration.getInstance().getSearchProviderFactory());
+	}
+
+	/**
+	 * Test constructor: supplies the Solr factories instead of taking them from Configuration.
+	 * Package-private so RESTEasy only ever sees the public constructor.
+	 */
+	SearchServiceV3(HttpServletRequest httpRequest, SolrObjectFactory solrObjectFactory,
+			SearchProviderFactory searchProviderFactory) {
 		super(httpRequest);
+		this.solrObjectFactory = solrObjectFactory;
+		this.searchProviderFactory = searchProviderFactory;
 	}
 
 	
@@ -159,6 +176,10 @@ public class SearchServiceV3 extends NdexService  {
 	@Path("/networks/{networkId}/query")
 	@Produces("application/json")
 	@Operation(summary = "Query Network (CX2)", description = "Returns a CX2 'neighborhood' subnetwork of the network specified by networkId. If the network is not public, an optional `accesskey` grants anonymous read access when it matches an enabled access key on the network itself, on any ancestor folder in its folder hierarchy, or on a folder holding a same-owner shortcut to the network.")
+	@ApiResponse(responseCode = "200", description = "The query result as CX2")
+	@ApiResponse(responseCode = "201", description = "The query result was saved as a new network; the body holds its URL")
+	@ApiResponse(responseCode = "500", description = "Server error")
+	@ApiResponse(responseCode = "503", description = "Search service unavailable; retry later")
 	public Response queryNetworkAsCX(
 			@PathParam("networkId") final String networkIdStr,
 			@QueryParam("accesskey") String accessKey,
@@ -189,7 +210,7 @@ public class SearchServiceV3 extends NdexService  {
 				throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
 			}
 			networkName = dao.getNetworkName(networkId);
-			SearchServiceV2.getSolrIdxReady(networkId, dao);
+			solrObjectFactory.getSingleNetworkSolrIdxManager(networkId.toString()).ensureReady(dao.getNodeCount(networkId));
 			
 		}   
 /*		ProvenanceEntity ei = new ProvenanceEntity();
@@ -243,6 +264,10 @@ public class SearchServiceV3 extends NdexService  {
 	@Path("/networks/{networkId}/interconnectquery")
 	@Produces("application/json")
 	@Operation(summary = "Interconnect Query (CX2)", description = "Returns a CX2 'neighborhood' subnetwork where all paths start and end at one of the query nodes in the network specified by networkId. If the network is not public, an optional `accesskey` grants anonymous read access when it matches an enabled access key on the network itself, on any ancestor folder in its folder hierarchy, or on a folder holding a same-owner shortcut to the network.")
+	@ApiResponse(responseCode = "200", description = "The query result as CX2")
+	@ApiResponse(responseCode = "201", description = "The query result was saved as a new network; the body holds its URL")
+	@ApiResponse(responseCode = "500", description = "Server error")
+	@ApiResponse(responseCode = "503", description = "Search service unavailable; retry later")
 	public Response interconnectQuery(
 			@PathParam("networkId") final String networkIdStr,
 			@QueryParam("accesskey") String accessKey,
@@ -276,7 +301,7 @@ public class SearchServiceV3 extends NdexService  {
 			if ( !dao.isReadable(networkId, userId) && !dao.accessKeyIsValid(networkId, accessKey)) {
 				throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
 			}
-			SearchServiceV2.getSolrIdxReady(networkId, dao);
+			solrObjectFactory.getSingleNetworkSolrIdxManager(networkId.toString()).ensureReady(dao.getNodeCount(networkId));
 			networkName = dao.getNetworkName(networkId);
 			
 		}   
@@ -571,7 +596,9 @@ public class SearchServiceV3 extends NdexService  {
 	@ApiResponses(value = {
 			@ApiResponse(responseCode = "200", description = "The matching files and the total hit count"),
 			@ApiResponse(responseCode = "400", description = "Invalid parameters, including visibility=UNLISTED"),
-			@ApiResponse(responseCode = "401", description = "visibility=PRIVATE without user credentials")
+			@ApiResponse(responseCode = "401", description = "visibility=PRIVATE without user credentials"),
+			@ApiResponse(responseCode = "500", description = "Server error"),
+			@ApiResponse(responseCode = "503", description = "Search service unavailable; retry later")
 	})
 	@Produces("application/json")
 	@Consumes("application/json")
@@ -605,8 +632,7 @@ public class SearchServiceV3 extends NdexService  {
     	if(query.getAccountName() != null)
     		query.setAccountName(	query.getAccountName().toLowerCase());
 
-		try (SearchProvider search = Configuration.getInstance().getSearchProvider()){
-			return search.searchFiles(query, visibilityType, user, paging.getStart(), paging.getSize());
-		}
+		SearchProvider search = searchProviderFactory.getSearchProvider();
+		return search.searchFiles(query, visibilityType, user, paging.getStart(), paging.getSize());
 	}
 }

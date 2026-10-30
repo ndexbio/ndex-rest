@@ -6,7 +6,6 @@ import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
-import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
@@ -57,12 +56,6 @@ public class TestFolderIndexManager {
         Configuration.setInstance(savedInstance);
     }
 
-    @After
-    public void tearDown() {
-        if (manager != null) {
-            manager.close();
-        }
-    }
 
     private FolderIndexManager createManagerWithMock() {
         mockWrapper = createNiceMock(SolrClientWrapper.class);
@@ -361,7 +354,6 @@ public class TestFolderIndexManager {
 
         mockWrapper.commit(capture(coreCapture), capture(docsCapture));
         expectLastCall().once();
-        mockWrapper.close();
         expectLastCall().anyTimes();
         replay(mockWrapper);
 
@@ -388,7 +380,6 @@ public class TestFolderIndexManager {
 
         mockWrapper.commit(capture(coreCapture), capture(docsCapture));
         expectLastCall().once();
-        mockWrapper.close();
         expectLastCall().anyTimes();
         replay(mockWrapper);
 
@@ -418,7 +409,6 @@ public class TestFolderIndexManager {
 
         mockWrapper.delete(capture(coreCapture), capture(uuidCapture), eq(false));
         expectLastCall().once();
-        mockWrapper.close();
         expectLastCall().anyTimes();
         replay(mockWrapper);
 
@@ -450,7 +440,6 @@ public class TestFolderIndexManager {
 
         expect(mockWrapper.query(capture(coreCapture), capture(queryCapture)))
                 .andReturn(mockResponse);
-        mockWrapper.close();
         expectLastCall().anyTimes();
         replay(mockWrapper);
 
@@ -487,7 +476,6 @@ public class TestFolderIndexManager {
         Capture<SolrQuery> queryCapture = Capture.newInstance();
         expect(mockWrapper.query(eq(NFSIndexManager.nfsCoreName), capture(queryCapture)))
                 .andReturn(mockResponse);
-        mockWrapper.close();
         expectLastCall().anyTimes();
         replay(mockWrapper);
 
@@ -506,6 +494,34 @@ public class TestFolderIndexManager {
                 fq[0].contains("(visibility:PRIVATE)"));
     }
 
+    /**
+     * Solr being unreachable must reach the web layer as SolrUnavailableException (mapped to 503),
+     * not be flattened into the generic "Error accessing Solr" NdexException (500).
+     */
+    @Test
+    public void searchPassesSolrUnavailabilityThroughUnwrapped() throws Exception {
+        SolrUnavailableException unavailable =
+                new SolrUnavailableException(new java.net.ConnectException("Connection refused"));
+        mockWrapper = createMock(SolrClientWrapper.class);
+        expect(mockWrapper.query(eq(NFSIndexManager.nfsCoreName), anyObject(SolrQuery.class)))
+                .andThrow(unavailable).times(2);
+        replay(mockWrapper);
+
+        manager = new FolderIndexManager(mockWrapper);
+        try {
+            manager.search("*:*", null, null, 10, 0, null, null, SearchScope.EMPTY);
+            fail("expected SolrUnavailableException");
+        } catch (SolrUnavailableException e) {
+            assertSame(unavailable, e);
+        }
+        try {
+            manager.searchByType("*:*", null, null, 10, 0, null, null, "FOLDER", false, SearchScope.EMPTY);
+            fail("expected SolrUnavailableException");
+        } catch (SolrUnavailableException e) {
+            assertSame(unavailable, e);
+        }
+    }
+
     @Test
     public void testSearch_WithOwnerFilter() throws Exception {
         SolrDocumentList mockResults = new SolrDocumentList();
@@ -519,7 +535,6 @@ public class TestFolderIndexManager {
         Capture<SolrQuery> queryCapture = Capture.newInstance();
         expect(mockWrapper.query(anyString(), capture(queryCapture)))
                 .andReturn(mockResponse);
-        mockWrapper.close();
         expectLastCall().anyTimes();
         replay(mockWrapper);
 
@@ -544,7 +559,6 @@ public class TestFolderIndexManager {
         Capture<SolrQuery> queryCapture = Capture.newInstance();
         expect(mockWrapper.query(anyString(), capture(queryCapture)))
                 .andReturn(mockResponse);
-        mockWrapper.close();
         expectLastCall().anyTimes();
         replay(mockWrapper);
 
@@ -569,7 +583,6 @@ public class TestFolderIndexManager {
         Capture<SolrQuery> queryCapture = Capture.newInstance();
         expect(mockWrapper.query(eq(NFSIndexManager.nfsCoreName), capture(queryCapture)))
                 .andReturn(mockResponse);
-        mockWrapper.close();
         expectLastCall().anyTimes();
         replay(mockWrapper);
 
@@ -597,7 +610,6 @@ public class TestFolderIndexManager {
         Capture<SolrQuery> queryCapture = Capture.newInstance();
         expect(mockWrapper.query(eq(NFSIndexManager.nfsCoreName), capture(queryCapture)))
                 .andReturn(mockResponse);
-        mockWrapper.close();
         expectLastCall().anyTimes();
         replay(mockWrapper);
 
@@ -623,7 +635,6 @@ public class TestFolderIndexManager {
         Capture<SolrQuery> queryCapture = Capture.newInstance();
         expect(mockWrapper.query(eq(NFSIndexManager.nfsCoreName), capture(queryCapture)))
                 .andReturn(mockResponse);
-        mockWrapper.close();
         expectLastCall().anyTimes();
         replay(mockWrapper);
 
@@ -649,7 +660,6 @@ public class TestFolderIndexManager {
         Capture<SolrQuery> queryCapture = Capture.newInstance();
         expect(mockWrapper.query(eq(NFSIndexManager.nfsCoreName), capture(queryCapture)))
                 .andReturn(mockResponse);
-        mockWrapper.close();
         expectLastCall().anyTimes();
         replay(mockWrapper);
 
@@ -681,7 +691,6 @@ public class TestFolderIndexManager {
         Capture<SolrQuery> queryCapture = Capture.newInstance();
         expect(mockWrapper.query(anyString(), capture(queryCapture)))
                 .andReturn(mockResponse);
-        mockWrapper.close();
         expectLastCall().anyTimes();
         replay(mockWrapper);
 

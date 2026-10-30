@@ -101,17 +101,13 @@ public class NFSReIndexer implements Runnable,AutoCloseable {
 
     public void resetIndexes() throws Exception {
         logger.info("Resetting NFS Solr indexes...");
-        // Each getSolrClient call builds a new client owning non-daemon Jetty threads, so these
-        // must be closed or a CLI run never exits after main() returns.
         // Only ndex-nfs is cleared. Any public-nfs/private-nfs left over from before the core merge is
         // deliberately left intact: it is the rollback artifact for this release.
-        try (FolderIndexManager fim = solrObjectFactory.getFolderIndexManager();
-             SolrClient nfsClient = solrObjectFactory.getSolrClient(NFSIndexManager.nfsCoreName)) {
-            fim.createCoreIfNeeded();
+        solrObjectFactory.getFolderIndexManager().createCoreIfNeeded();
 
-            nfsClient.deleteByQuery("*:*");
-            nfsClient.commit();
-        }
+        SolrClient solrClient = solrObjectFactory.getSolrClient();
+        solrClient.deleteByQuery(NFSIndexManager.nfsCoreName, "*:*");
+        solrClient.commit(NFSIndexManager.nfsCoreName);
         logger.info("NFS Solr indexes reset.");
     }
 
@@ -130,9 +126,9 @@ public class NFSReIndexer implements Runnable,AutoCloseable {
                 + "f.visibility, f.owneruuid "
                 + "FROM folder f WHERE f.is_deleted = false";
 
+        FolderIndexManager fim = solrObjectFactory.getFolderIndexManager();
         try (PreparedStatement pst = db.prepareStatement(sql);
-             ResultSet rs = pst.executeQuery();
-             FolderIndexManager fim = solrObjectFactory.getFolderIndexManager()) {
+             ResultSet rs = pst.executeQuery()) {
 
             while (rs.next()) {
                 UUID folderId = (UUID) rs.getObject(1);
@@ -180,9 +176,9 @@ public class NFSReIndexer implements Runnable,AutoCloseable {
                 + "s.visibility, s.owneruuid, s.target, s.target_type, s.parent "
                 + "FROM shortcut s WHERE s.is_deleted = false";
 
+        ShortcutIndexManager sim = solrObjectFactory.getShortcutIndexManager();
         try (PreparedStatement pst = db.prepareStatement(sql);
-             ResultSet rs = pst.executeQuery();
-             ShortcutIndexManager sim = solrObjectFactory.getShortcutIndexManager()) {
+             ResultSet rs = pst.executeQuery()) {
 
             while (rs.next()) {
                 UUID shortcutId = (UUID) rs.getObject(1);
@@ -243,9 +239,9 @@ public class NFSReIndexer implements Runnable,AutoCloseable {
 
         String sql = REINDEX_SELECT_SQL;
 
+        GlobalNetworkIndexManager globalNetworkIndexManager = solrObjectFactory.getGlobalNetworkIndexManager();
         try (PreparedStatement pst = db.prepareStatement(sql);
-             ResultSet rs = pst.executeQuery();
-             GlobalNetworkIndexManager globalNetworkIndexManager = solrObjectFactory.getGlobalNetworkIndexManager()) {
+             ResultSet rs = pst.executeQuery()) {
 
             while (rs.next()) {
                 UUID networkId = (UUID) rs.getObject(1);
@@ -309,18 +305,15 @@ public class NFSReIndexer implements Runnable,AutoCloseable {
                     globalNetworkIndexManager.delete(id);
 
                     if ( idxScope == SolrIndexScope.both)
-                        try (SingleNetworkSolrIdxManager idx2 = solrObjectFactory.getSingleNetworkSolrIdxManager(fileId.toString())) {
-                            idx2.dropIndex();
-                        }
+                        solrObjectFactory.getSingleNetworkSolrIdxManager(fileId.toString()).dropIndex();
                 }
 
                 //build the individual index for queries
                 if (idxScope == SolrIndexScope.both) {
                     long t1 = Calendar.getInstance().getTimeInMillis();
                     int committedDocs;
-                    try (SingleNetworkSolrIdxManager idx2 = solrObjectFactory.getSingleNetworkSolrIdxManager(fileId.toString())) {
-                        committedDocs = idx2.createIndexFromCx2(null, summary.getNodeCount());
-                    }
+                    SingleNetworkSolrIdxManager idx2 = solrObjectFactory.getSingleNetworkSolrIdxManager(fileId.toString());
+                    committedDocs = idx2.createIndexFromCx2(null, summary.getNodeCount());
                     long t = Calendar.getInstance().getTimeInMillis() - t1;
                     logger.info("Takes {} secs to create index for network {} with {} documents",
                             t / 1000, fileId, committedDocs);

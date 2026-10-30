@@ -38,6 +38,12 @@
 
     <display-name>NDEx RESTful API</display-name>
 
+    <!-- Declared first so its contextDestroyed runs last: it closes the shared Solr client
+         once every servlet and filter has been destroyed. -->
+    <listener>
+        <listener-class>org.ndexbio.rest.ConfigurationShutdownListener</listener-class>
+    </listener>
+
     <!-- ================================================================
          MCP endpoint — registered programmatically by the listener.
          McpAuthFilter pre-authenticates /mcp/* requests:

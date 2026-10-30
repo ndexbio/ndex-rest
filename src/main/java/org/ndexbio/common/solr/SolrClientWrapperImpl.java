@@ -1,9 +1,10 @@
 package org.ndexbio.common.solr;
 
 import java.io.IOException;
+import java.net.ConnectException;
+import java.net.SocketTimeoutException;
 import java.util.Collection;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeoutException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.solr.client.solrj.SolrClient;
@@ -26,32 +27,29 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Wraps common Solr client operations
- * 
+ *
+ * <p>Stateless: every call goes through the factory's shared client with the core name passed
+ * per request, so a wrapper owns nothing and needs no closing. A request Solr refused or did not
+ * answer in time surfaces as {@link SolrUnavailableException}.</p>
+ *
  * @author churas
  */
 public class SolrClientWrapperImpl implements SolrClientWrapper {
-	
-	/**
-	 * Base client for solr, needed for core operations
-	 */
-	private SolrClient _baseClient;
-	private final Map<String, SolrClient> _clientCache = new ConcurrentHashMap<>();
 
 	/**
 	 * Factory to get solrclient and coreadmin objects
 	 * to communicate with Solr
 	 */
-	private SolrObjectFactory _factory;
-	
+	private final SolrObjectFactory _factory;
+
 	private static final Logger logger = LoggerFactory.getLogger(SolrClientWrapperImpl.class.getName());
 
 	/**
 	 * Constructor
-	 * 
+	 *
 	 * @param factory Factory to get SolrClient and CoreAdmin objects
 	 */
 	public SolrClientWrapperImpl(final SolrObjectFactory factory){
-		_baseClient = factory.getSolrClient(null);
 		_factory = factory;
 	}
 
@@ -66,19 +64,33 @@ public class SolrClientWrapperImpl implements SolrClientWrapper {
 			Matcher m = p.matcher(e.getMessage());
 			if ( m.matches()) {
 				err = m.group(1);
-			} 
+			}
 			return new BadRequestException(err);
-		}	
+		}
 		return new NdexException("Error from NDEx Solr server: " + e.getMessage());
 	}
-	
+
+	/**
+	 * Throws {@link SolrUnavailableException} when Solr refused the connection or did not answer
+	 * within the client's timeouts - the shapes SolrJ reports those as. Any other failure is left
+	 * for the caller to rethrow unchanged.
+	 */
+	private void throwIfUnavailable(SolrServerException e) throws SolrUnavailableException {
+		Throwable cause = e.getCause();
+		if (cause instanceof ConnectException
+				|| cause instanceof TimeoutException
+				|| cause instanceof SocketTimeoutException) {
+			throw new SolrUnavailableException(e);
+		}
+	}
+
 	/**
 	 * Creates core on Solr if needed. If core exists, nothing is done
-	 * 
+	 *
 	 * @param coreName Name of core
 	 * @throws SolrServerException
 	 * @throws IOException
-	 * @throws NdexException 
+	 * @throws NdexException
 	 */
 	@Override
 	public void createCoreIfNeeded(final String coreName) throws SolrServerException, IOException, NdexException {
@@ -107,7 +119,13 @@ public class SolrClientWrapperImpl implements SolrClientWrapper {
 		CoreAdminRequest.Create creator = _factory.getCoreAdminRequestCreate();
 		creator.setCoreName(coreName);
 		creator.setConfigSet(configSetName);
-		CoreAdminResponse foo = creator.process(_baseClient);
+		CoreAdminResponse foo;
+		try {
+			foo = creator.process(_factory.getSolrClient());
+		} catch (SolrServerException e) {
+			throwIfUnavailable(e);
+			throw e;
+		}
 		if ( foo.getStatus() != 0 ) {
 			throw new NdexException ("Failed to create solrIndex for " + coreName + ". Error: " + foo.getResponseHeader().toString());
 		}
@@ -132,7 +150,13 @@ public class SolrClientWrapperImpl implements SolrClientWrapper {
 		creator.setIsLoadOnStartup(Boolean.FALSE);
 		creator.setIsTransient(Boolean.TRUE);
 
-		CoreAdminResponse foo = creator.process(_baseClient);
+		CoreAdminResponse foo;
+		try {
+			foo = creator.process(_factory.getSolrClient());
+		} catch (SolrServerException e) {
+			throwIfUnavailable(e);
+			throw e;
+		}
 		if ( foo.getStatus() != 0 ) {
 			throw new NdexException ("Failed to create solrIndex for network " + coreName + ". Error: " + foo.getResponseHeader().toString());
 		}
@@ -154,7 +178,13 @@ public class SolrClientWrapperImpl implements SolrClientWrapper {
 		confSetCreator.setBaseConfigSetName(baseConfigSetName);
 		confSetCreator.setConfigSetName(configSetName);
 
-		ConfigSetAdminResponse cr = confSetCreator.process(_baseClient);
+		ConfigSetAdminResponse cr;
+		try {
+			cr = confSetCreator.process(_factory.getSolrClient());
+		} catch (SolrServerException e) {
+			throwIfUnavailable(e);
+			throw e;
+		}
 		if ( cr.getStatus() != 0 ) {
 			throw new NdexException("Failed to create Solr ConfigSet " + configSetName);
 		}
@@ -171,7 +201,13 @@ public class SolrClientWrapperImpl implements SolrClientWrapper {
 	@Override
 	public boolean coreExists(final String coreName) throws SolrServerException, IOException, NdexException {
 
-		CoreAdminResponse foo = _factory.getCoreAdminRequestGetStatus(coreName);
+		CoreAdminResponse foo;
+		try {
+			foo = _factory.getCoreAdminRequestGetStatus(coreName);
+		} catch (SolrServerException e) {
+			throwIfUnavailable(e);
+			throw e;
+		}
 		if (foo.getStatus() != 0 ) {
 			throw new NdexException ("Failed to get status of solrIndex for " + coreName + ". Error: " + foo.getResponseHeader().toString());
 		}
@@ -188,11 +224,11 @@ public class SolrClientWrapperImpl implements SolrClientWrapper {
 
 	/**
 	 * Calls _factory.getCoreAdminRequestUnloadCore to drop or unload a core
-	 * 
+	 *
 	 * @param coreName name of core
 	 * @throws IOException
 	 * @throws SolrServerException
-	 * @throws NdexException 
+	 * @throws NdexException
 	 */
 	@Override
 	public void dropCore(final String coreName) throws IOException, SolrServerException, NdexException {
@@ -206,20 +242,24 @@ public class SolrClientWrapperImpl implements SolrClientWrapper {
 					|| e4.getMessage().indexOf("Cannot unload non-existent core") == -1) {
 				throw new NdexException("Unexpected Solr Exception: " + e4.getMessage());
 			}
+		} catch (SolrServerException e) {
+			throwIfUnavailable(e);
+			throw e;
 		}
 	}
 
 	/**
 	 * Calls solrclient.commit(false, true, true) adding any documents found in documents
 	 * passed in
-	 * 
+	 *
 	 * @param coreName Core to commit
 	 * @param documents documents to add
 	 * @throws SolrServerException
-	 * @throws IOException 
+	 * @throws IOException
+	 * @throws NdexException
 	 */
 	@Override
-	public void commit(final String coreName, final Collection<SolrInputDocument> documents) throws SolrServerException, IOException {
+	public void commit(final String coreName, final Collection<SolrInputDocument> documents) throws SolrServerException, IOException, NdexException {
 		commit(coreName, documents, false);
 	}
 
@@ -232,16 +272,22 @@ public class SolrClientWrapperImpl implements SolrClientWrapper {
 	 * @param hardCommit whether the commit should be durable
 	 * @throws SolrServerException
 	 * @throws IOException
+	 * @throws NdexException
 	 */
 	@Override
-	public void commit(final String coreName, final Collection<SolrInputDocument> documents, final boolean hardCommit) throws SolrServerException, IOException {
+	public void commit(final String coreName, final Collection<SolrInputDocument> documents, final boolean hardCommit) throws SolrServerException, IOException, NdexException {
 
-		var client = getSolrClient(coreName);
 		add(coreName, documents);
 
-		var ur = hardCommit ? client.commit(true, true, false) : client.commit(false, true, true);
-		if (ur != null && logger.isDebugEnabled()){
-			logger.debug("commit response: " + ur.toString());
+		SolrClient client = _factory.getSolrClient();
+		try {
+			var ur = hardCommit ? client.commit(coreName, true, true, false) : client.commit(coreName, false, true, true);
+			if (ur != null && logger.isDebugEnabled()){
+				logger.debug("commit response: " + ur.toString());
+			}
+		} catch (SolrServerException e) {
+			throwIfUnavailable(e);
+			throw e;
 		}
 	}
 
@@ -252,47 +298,59 @@ public class SolrClientWrapperImpl implements SolrClientWrapper {
 	 * @param documents documents to add; null or empty is a no-op
 	 * @throws SolrServerException
 	 * @throws IOException
+	 * @throws NdexException
 	 */
 	@Override
-	public void add(final String coreName, final Collection<SolrInputDocument> documents) throws SolrServerException, IOException {
+	public void add(final String coreName, final Collection<SolrInputDocument> documents) throws SolrServerException, IOException, NdexException {
 
 		if (documents == null || documents.isEmpty()){
 			return;
 		}
 
-		var ur = getSolrClient(coreName).add(documents);
-		if (ur != null && logger.isDebugEnabled()){
-			logger.debug("add: " + ur.toString());
+		try {
+			var ur = _factory.getSolrClient().add(coreName, documents);
+			if (ur != null && logger.isDebugEnabled()){
+				logger.debug("add: " + ur.toString());
+			}
+		} catch (SolrServerException e) {
+			throwIfUnavailable(e);
+			throw e;
 		}
 	}
 
 	/**
 	 * Deletes index of document
-	 * 
+	 *
 	 * @param coreName Core where document resides
 	 * @param id uuid of document
 	 * @param commit whether to tell solr to commit the change or not
 	 * @throws SolrServerException
-	 * @throws IOException 
+	 * @throws IOException
+	 * @throws NdexException
 	 */
 	@Override
-	public void delete(final String coreName, final String id, boolean commit) throws SolrServerException, IOException {
-		var client = getSolrClient(coreName);
-		var ur = client.deleteById(id);
-		if (ur != null && logger.isDebugEnabled()){
-			logger.debug("deleteById response: " + ur.toString());
-		}
-		if (commit == true){
-			ur = client.commit(false, true, true);
+	public void delete(final String coreName, final String id, boolean commit) throws SolrServerException, IOException, NdexException {
+		SolrClient client = _factory.getSolrClient();
+		try {
+			var ur = client.deleteById(coreName, id);
 			if (ur != null && logger.isDebugEnabled()){
-				logger.debug("commit response: " + ur.toString());
+				logger.debug("deleteById response: " + ur.toString());
 			}
+			if (commit == true){
+				ur = client.commit(coreName, false, true, true);
+				if (ur != null && logger.isDebugEnabled()){
+					logger.debug("commit response: " + ur.toString());
+				}
+			}
+		} catch (SolrServerException e) {
+			throwIfUnavailable(e);
+			throw e;
 		}
 	}
 
 	/**
-	 * Queries Solr 
-	 * 
+	 * Queries Solr
+	 *
 	 * @param coreName Core to query
 	 * @param query The query
 	 * @return Response from Solr
@@ -302,39 +360,15 @@ public class SolrClientWrapperImpl implements SolrClientWrapper {
 	 */
 	@Override
 	public QueryResponse query(final String coreName, final SolrQuery query) throws IOException, SolrServerException, NdexException {
-		
+
 		try {
-			return _baseClient.query(coreName, query, SolrRequest.METHOD.POST);		
-			
+			return _factory.getSolrClient().query(coreName, query, SolrRequest.METHOD.POST);
+
 		} catch (BaseHttpSolrClient.RemoteSolrException e) {
 			throw convertException(e, coreName);
-		}
-	}
-	public SolrClient getSolrClient(final String coreName) {
-		String key = (coreName == null || coreName.trim().isEmpty()) ? "" : coreName;
-		return _clientCache.computeIfAbsent(key, k -> {
-			if (k.isEmpty()) {
-				return _baseClient;
-			}
-			return _factory.getSolrClient(coreName);
-		});
-	}
-
-	/**
-	 * Closes base client
-	 */
-	@Override
-	public void close() {
-		try {
-			if (_baseClient != null){
-				_baseClient.close();
-			}
-			for (SolrClient client : _clientCache.values()) {
-				try { client.close(); } catch (Exception ignored) {}
-			}
-			_clientCache.clear();
-		} catch (IOException e) {
-			logger.info("Caught exception closing client", e);
+		} catch (SolrServerException e) {
+			throwIfUnavailable(e);
+			throw e;
 		}
 	}
 }

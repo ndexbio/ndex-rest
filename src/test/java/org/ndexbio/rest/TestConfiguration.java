@@ -15,10 +15,15 @@ import javax.crypto.NoSuchPaddingException;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 import static org.junit.Assert.*;
+import static org.easymock.EasyMock.createMock;
+import static org.easymock.EasyMock.expectLastCall;
+import static org.easymock.EasyMock.replay;
+import static org.easymock.EasyMock.verify;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
+import org.ndexbio.common.solr.SolrObjectFactory;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.rest.helpers.Security;
 
@@ -98,6 +103,50 @@ public class TestConfiguration {
 		} catch(NdexException | NoSuchAlgorithmException ne) {
 			fail("Caught NdexException: " + ne.getMessage());
 		}
+	}
+
+	@Test
+	public void getSolrRequestTimeoutDefault() throws Exception {
+		Configuration config = createConfiguration();
+		assertEquals(15, config.getSolrRequestTimeout());
+	}
+
+	@Test
+	public void getSolrRequestTimeoutSet() throws Exception {
+		Configuration config = createConfiguration();
+		config.setProperty(Configuration.SOLR_REQUEST_TIMEOUT, "45");
+		assertEquals(45, config.getSolrRequestTimeout());
+	}
+
+	@Test
+	public void getSolrRequestTimeoutNonNumeric() throws Exception {
+		Configuration config = createConfiguration();
+		config.setProperty(Configuration.SOLR_REQUEST_TIMEOUT, "hello");
+		assertEquals(15, config.getSolrRequestTimeout());
+	}
+
+	/** Closing the configuration releases the shared Solr client it holds. */
+	@Test
+	public void closeClosesTheSolrObjectFactory() throws Exception {
+		Configuration config = createConfiguration();
+		SolrObjectFactory realFactory = config.getSolrObjectFactory();
+		SolrObjectFactory mockFactory = createMock(SolrObjectFactory.class);
+		mockFactory.close();
+		expectLastCall();
+		replay(mockFactory);
+		config.setSolrObjectFactory(mockFactory);
+
+		config.close();
+
+		verify(mockFactory);
+		realFactory.close();
+	}
+
+	private Configuration createConfiguration() throws Exception {
+		File tmpFolder = _tmpFolder.newFolder();
+		String configFile = tmpFolder.getCanonicalPath() + File.separator + "config";
+		writeSimpleConfigToFile(configFile, tmpFolder.getCanonicalPath(), null);
+		return Configuration.reCreateInstance(configFile);
 	}
 	
 

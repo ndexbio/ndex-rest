@@ -63,52 +63,55 @@ public class DbMigrationTool implements AutoCloseable {
 		// never loaded and no log files are written. Must stay the first statement in main().
 		System.setProperty("logback.configurationFile", "logback-cli.xml");
 
-		Configuration configuration = Configuration.createInstance();
-		NdexDatabase.createNdexDatabase(configuration.getDBURL(), configuration.getDBUser(),
-				configuration.getDBPasswd(), 5);
+		// Closing the configuration stops the shared Solr client's non-daemon threads, which would
+		// otherwise keep this process alive after main() returns.
+		try (Configuration configuration = Configuration.createInstance()) {
+			NdexDatabase.createNdexDatabase(configuration.getDBURL(), configuration.getDBUser(),
+					configuration.getDBPasswd(), 5);
 
-		if (args.length < 1) {
-			usage();
-			return;
-		}
-
-		String command = args[0];
-		boolean apply = false;
-		for (int i = 1; i < args.length; i++) {
-			if (APPLY_FLAG.equals(args[i]))
-				apply = true;
-		}
-
-		if (!CMD_TRANSFORM.equals(command) && !CMD_PRIVATIZE.equals(command)) {
-			usage();
-			return;
-		}
-
-		report((apply ? "APPLY" : "DRY-RUN") + " mode. Command: " + command);
-
-		try (DbMigrationTool tool = new DbMigrationTool()) {
-			switch (command) {
-			case CMD_TRANSFORM:
-				tool.transformAccessKeyShortcuts(apply);
-				break;
-			case CMD_PRIVATIZE:
-				tool.privatizeFolders(apply);
-				break;
-			default:
+			if (args.length < 1) {
 				usage();
 				return;
 			}
-		}
 
-		if (apply) {
-			report("DB migration complete. Kicking off full v3 reindex (networks, folders, shortcuts)...");
-			try (NFSReIndexer reIndexer = new NFSReIndexer()) {
-				reIndexer.run();
+			String command = args[0];
+			boolean apply = false;
+			for (int i = 1; i < args.length; i++) {
+				if (APPLY_FLAG.equals(args[i]))
+					apply = true;
 			}
-			report("Reindex complete.");
-		} else {
-			report("Dry-run complete. No changes were made and no reindex was run. "
-					+ "Re-run with " + APPLY_FLAG + " to perform the changes.");
+
+			if (!CMD_TRANSFORM.equals(command) && !CMD_PRIVATIZE.equals(command)) {
+				usage();
+				return;
+			}
+
+			report((apply ? "APPLY" : "DRY-RUN") + " mode. Command: " + command);
+
+			try (DbMigrationTool tool = new DbMigrationTool()) {
+				switch (command) {
+				case CMD_TRANSFORM:
+					tool.transformAccessKeyShortcuts(apply);
+					break;
+				case CMD_PRIVATIZE:
+					tool.privatizeFolders(apply);
+					break;
+				default:
+					usage();
+					return;
+				}
+			}
+
+			if (apply) {
+				report("DB migration complete. Kicking off full v3 reindex (networks, folders, shortcuts)...");
+				try (NFSReIndexer reIndexer = new NFSReIndexer()) {
+					reIndexer.run();
+				}
+				report("Reindex complete.");
+			} else {
+				report("Dry-run complete. No changes were made and no reindex was run. "
+						+ "Re-run with " + APPLY_FLAG + " to perform the changes.");
+			}
 		}
 	}
 

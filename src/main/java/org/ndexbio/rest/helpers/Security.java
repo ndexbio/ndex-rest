@@ -259,19 +259,20 @@ public class Security
      * @throws NoSuchAlgorithmException 
      * @throws InvalidKeyException 
      */
-    public static void main(String[] args) throws NdexException, InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException, UnsupportedEncodingException {
+    public static void main(String[] args) throws NdexException, InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException, IOException {
 
     	System.setProperty(Configuration.ndexConfigFilePropName, "/opt/ndex/conf/ndex.properties");
-		Configuration.createInstance();
+		try (Configuration configuration = Configuration.createInstance()) {
 		
-		if ( args.length != 2) {
-			System.out.println("Usage: org.ndexbio.rest.helpers <username> <password>");
-		} else {
-			String username = args[0];
-			String password = args[1];
-			
-			System.out.println(encrypt(username+":"+password));
-			
+			if ( args.length != 2) {
+				System.out.println("Usage: org.ndexbio.rest.helpers <username> <password>");
+			} else {
+				String username = args[0];
+				String password = args[1];
+				
+				System.out.println(encrypt(username+":"+password));
+				
+			}
 		}
 		
 		

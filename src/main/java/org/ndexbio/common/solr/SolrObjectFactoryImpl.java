@@ -1,6 +1,7 @@
 package org.ndexbio.common.solr;
 
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.Http2SolrClient;
@@ -9,16 +10,21 @@ import org.apache.solr.client.solrj.request.CoreAdminRequest;
 import org.apache.solr.client.solrj.response.CoreAdminResponse;
 
 /**
- * SolrClient and CoreAdmin factory implementation using Http2SolrClient
- * object and wrappers around CoreAdminRequest calls
- * 
+ * SolrClient and CoreAdmin factory implementation, owning the one Http2SolrClient this JVM
+ * uses to talk to Solr.
+ *
+ * <p>The client is built once and shared by every manager and wrapper this factory hands out;
+ * callers pass the core name on each request. Nothing a caller gets from here needs closing -
+ * the client is closed once, by {@link #close()}, when the process shuts down.</p>
+ *
  * @author churas
  */
 public class SolrObjectFactoryImpl implements SolrObjectFactory {
 
-	private final String _baseSolrUrl;
+	static final long CONNECT_TIMEOUT_SECONDS = 10;
+
 	private final String _ndexRoot;
-	private static final String SLASH = "/";
+	private final Http2SolrClient _solrClient;
 
 	/**
 	 * Constructor
@@ -26,24 +32,24 @@ public class SolrObjectFactoryImpl implements SolrObjectFactory {
 	 * @param baseSolrUrl Should be URL to solr service ie http://localhost:8983/solr
 	 * @param ndexRoot NDEx data root, used to locate the CX2 aspect files that node indexes
 	 *                 are built from ie /opt/ndex
+	 * @param requestTimeoutSeconds Upper bound on any one Solr request, so an unresponsive Solr
+	 *                 cannot hold the calling thread
 	 */
-	public SolrObjectFactoryImpl(final String baseSolrUrl, final String ndexRoot){
-		_baseSolrUrl = baseSolrUrl;
+	public SolrObjectFactoryImpl(final String baseSolrUrl, final String ndexRoot, final long requestTimeoutSeconds){
 		_ndexRoot = ndexRoot;
+		_solrClient = new Http2SolrClient.Builder(baseSolrUrl)
+				.withConnectionTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+				.withRequestTimeout(requestTimeoutSeconds, TimeUnit.SECONDS)
+				.build();
 	}
-	
+
 	/**
-	 * Gets Solr client
-	 * @param coreName Core to tether client to. If null or empty string then base client is returned
-	 * @return Solr client of type Http2SolrClient
+	 * Gets the shared Solr client, bound to the Solr base URL
+	 * @return the same Http2SolrClient on every call
 	 */
 	@Override
-	public SolrClient getSolrClient(final String coreName) {
-		if (coreName == null || coreName.trim().isEmpty()){
-			return new Http2SolrClient.Builder(_baseSolrUrl).build();
-		}
-		var sb = new StringBuilder().append(_baseSolrUrl).append(SLASH).append(coreName);
-		return new Http2SolrClient.Builder(sb.toString()).build();
+	public SolrClient getSolrClient() {
+		return _solrClient;
 	}
 
 	/**
@@ -51,20 +57,16 @@ public class SolrObjectFactoryImpl implements SolrObjectFactory {
 	 * @param coreName Name of core to query
 	 * @return Response of query to Solr
 	 * @throws IOException
-	 * @throws SolrServerException 
+	 * @throws SolrServerException
 	 */
 	@Override
 	public CoreAdminResponse getCoreAdminRequestGetStatus(final String coreName) throws IOException, SolrServerException {
-		// getSolrClient builds a new client per call, and Http2SolrClient owns non-daemon Jetty
-		// threads - leaving it open keeps a CLI process alive after main() returns.
-		try (SolrClient client = getSolrClient(null)) {
-			return CoreAdminRequest.getStatus(coreName, client);
-		}
+		return CoreAdminRequest.getStatus(coreName, _solrClient);
 	}
 
 	/**
 	 * Creates CoreAdminRequest.Create.
-	 * @return 
+	 * @return
 	 */
 	@Override
 	public CoreAdminRequest.Create getCoreAdminRequestCreate() {
@@ -81,19 +83,17 @@ public class SolrObjectFactoryImpl implements SolrObjectFactory {
 	}
 
 	/**
-	 * Requests unload of Core from Solr. 
+	 * Requests unload of Core from Solr.
 	 * @param coreName Name of core to unload
 	 * @param deleteIndex denotes whether to delete index
 	 * @param deleteInstanceDir denotes whether to remove index directory
 	 * @return response of request
 	 * @throws IOException
-	 * @throws SolrServerException 
+	 * @throws SolrServerException
 	 */
 	@Override
 	public CoreAdminResponse getCoreAdminRequestUnloadCore(final String coreName, boolean deleteIndex, boolean deleteInstanceDir) throws IOException, SolrServerException {
-		try (SolrClient client = getSolrClient(null)) {
-			return CoreAdminRequest.unloadCore(coreName, deleteIndex, deleteInstanceDir, client);
-		}
+		return CoreAdminRequest.unloadCore(coreName, deleteIndex, deleteInstanceDir, _solrClient);
 	}
 
 	@Override
@@ -117,6 +117,17 @@ public class SolrObjectFactoryImpl implements SolrObjectFactory {
 				new Cx2NodeIndexServiceImpl(_ndexRoot));
 	}
 
+	@Override
+	public UserIndexManager getUserIndexManager() {
+		return new UserIndexManager(new SolrClientWrapperImpl(this));
+	}
 
-
+	/**
+	 * Closes the shared client, stopping its threads. Only for process shutdown: every manager
+	 * handed out by this factory stops working afterwards.
+	 */
+	@Override
+	public void close() throws IOException {
+		_solrClient.close();
+	}
 }

@@ -347,9 +347,8 @@ public class CXNetworkLoader implements AutoCloseable {
 				boolean needIndividualIndex = this.nodeIdTracker.getDefinedElementSize() >= SingleNetworkSolrIdxManager.AUTOCREATE_THRESHHOLD;
 				
 				//clear the individual index 
-				try (SingleNetworkSolrIdxManager idx2 = Configuration.getInstance().getSolrObjectFactory().getSingleNetworkSolrIdxManager(networkId.toString())) {
-					idx2.dropIndex();
-				}
+				SingleNetworkSolrIdxManager idx2 = Configuration.getInstance().getSolrObjectFactory().getSingleNetworkSolrIdxManager(networkId.toString());
+				idx2.dropIndex();
 
 				// An update always refreshes the file document: its name and description changed, and the
 				// network's index level says nothing about whether it stays findable.

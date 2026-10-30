@@ -474,7 +474,7 @@ if [[ "${ENABLE_SOLR}" == "true" ]]; then
   # decommissioned.
   echo "==> Installing Solr configsets..."
   mkdir -p /apps/solr/data/configsets
-  for cs in ndex-networks ndex-nodes ndex-users ndex-nfs public-nfs private-nfs; do
+  for cs in ndex-nodes ndex-users ndex-nfs public-nfs private-nfs; do
     if [[ -d "/opt/ndex-install/solr-configsets/${cs}" ]]; then
       cp -r "/opt/ndex-install/solr-configsets/${cs}" /apps/solr/data/configsets/
     fi

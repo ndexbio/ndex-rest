@@ -68,25 +68,23 @@ public class SolrTaskDeleteFiles extends NdexSystemTask {
 
 		SolrObjectFactory solrObjectFactory = Configuration.getInstance().getSolrObjectFactory();
 
-		try (FolderIndexManager globalIdx = solrObjectFactory.getFolderIndexManager()) {
-			for (UUID id : ids.all()) {
-				String idStr = id.toString();
-				globalIdx.delete(idStr);
-			}
-			// Commit explicitly rather than waiting on Solr autoCommit, so a search immediately after
-			// the delete does not still see the removed docs.
-			globalIdx.commit();
+		FolderIndexManager globalIdx = solrObjectFactory.getFolderIndexManager();
+		for (UUID id : ids.all()) {
+			String idStr = id.toString();
+			globalIdx.delete(idStr);
 		}
+		// Commit explicitly rather than waiting on Solr autoCommit, so a search immediately after
+		// the delete does not still see the removed docs.
+		globalIdx.commit();
 
 		// A network may additionally own a per-network node query index. That core is keyed by name,
 		// not visibility, so it is dropped exactly once. dropCore() already tolerates a core that was
 		// never created, which is the common case: only networks above
 		// SingleNetworkSolrIdxManager.AUTOCREATE_THRESHHOLD get one.
 		for (UUID networkId : ids.networks()) {
-			try (SingleNetworkSolrIdxManager idxManager =
-					solrObjectFactory.getSingleNetworkSolrIdxManager(networkId.toString())) {
-				idxManager.dropIndex();
-			}
+			SingleNetworkSolrIdxManager idxManager =
+					solrObjectFactory.getSingleNetworkSolrIdxManager(networkId.toString());
+			idxManager.dropIndex();
 		}
 	}
 

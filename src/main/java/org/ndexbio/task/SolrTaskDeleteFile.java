@@ -45,15 +45,13 @@ public class SolrTaskDeleteFile extends NdexSystemTask {
 	public void run() throws NdexException, SolrServerException, IOException  {
 		String id = fileId.toString();
 		
-		try(FolderIndexManager globalIdx = Configuration.getInstance().getSolrObjectFactory().getFolderIndexManager()) {
-			globalIdx.delete(id);
-			// Only networks have a per-network query core. Asking Solr to unload one for a
-			// folder or shortcut can never succeed - it just costs a round trip and an error.
-			if (!globalIdxOnly && fileType == FileType.NETWORK) {
-				try (SingleNetworkSolrIdxManager idxManager = Configuration.getInstance().getSolrObjectFactory().getSingleNetworkSolrIdxManager(id)) {
-					idxManager.dropIndex();
-				}
-			}
+		FolderIndexManager globalIdx = Configuration.getInstance().getSolrObjectFactory().getFolderIndexManager();
+		globalIdx.delete(id);
+		// Only networks have a per-network query core. Asking Solr to unload one for a
+		// folder or shortcut can never succeed - it just costs a round trip and an error.
+		if (!globalIdxOnly && fileType == FileType.NETWORK) {
+			SingleNetworkSolrIdxManager idxManager = Configuration.getInstance().getSolrObjectFactory().getSingleNetworkSolrIdxManager(id);
+			idxManager.dropIndex();
 		}
 
 	}

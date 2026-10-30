@@ -16,11 +16,11 @@ import org.apache.solr.client.solrj.response.CoreAdminResponse;
 public interface SolrObjectFactory {
 	
 	/**
-	 * Gets SolrClient
-	 * @param coreName Name of core to obtain client for. If {@code null} just return base client
-	 * @return 
+	 * Gets the shared SolrClient, bound to the Solr base URL. Pass the core name on each request.
+	 * Callers never close it.
+	 * @return the same client on every call
 	 */
-	public SolrClient getSolrClient(final String coreName);
+	public SolrClient getSolrClient();
 	
 	/**
 	 * Gets status of a Core from Solr
@@ -61,12 +61,20 @@ public interface SolrObjectFactory {
 	public ShortcutIndexManager getShortcutIndexManager();
 
 	/**
-	 * Gets a manager for one network's node query index, wired with its own Solr client
-	 * and CX2 aspect reader.
+	 * Gets a manager for one network's node query index, wired with the shared Solr client
+	 * and a CX2 aspect reader.
 	 *
 	 * @param networkId network UUID, which is also its Solr core name
 	 */
 	public SingleNetworkSolrIdxManager getSingleNetworkSolrIdxManager(final String networkId);
 
+	public UserIndexManager getUserIndexManager();
+
+	/**
+	 * Closes the shared Solr client. Only the owner of the process lifecycle calls this, once,
+	 * at shutdown.
+	 * @throws IOException
+	 */
+	public void close() throws IOException;
 
 }

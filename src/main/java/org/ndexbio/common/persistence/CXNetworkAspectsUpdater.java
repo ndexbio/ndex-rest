@@ -106,9 +106,8 @@ public class CXNetworkAspectsUpdater extends CXNetworkLoader {
 				throw new NdexException("DB error when setting unlock flag: " + e.getMessage(), e);
 			}
 
-			try (SingleNetworkSolrIdxManager idx2 = Configuration.getInstance().getSolrObjectFactory().getSingleNetworkSolrIdxManager(getNetworkId().toString())) {
-				idx2.dropIndex();
-			}
+			SingleNetworkSolrIdxManager idx2 = Configuration.getInstance().getSolrObjectFactory().getSingleNetworkSolrIdxManager(getNetworkId().toString());
+			idx2.dropIndex();
 			// Scope stays 'both' whatever the index level: the aspects that just changed feed the file
 			// document as well as the per-network node core.
 			NdexServerQueue.INSTANCE.addSystemTask(
