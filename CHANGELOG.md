@@ -7,13 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ndex-rest and its Helm chart (NDEx REST Helm) are versioned and released separately, each under its
 own heading.
 
-## [3.0.9] - Unreleased
+## [3.0.9] - 2026-10-30
 
 ### Changed
 
 - **Search and user endpoints return 503 when the search service is unreachable or does not answer in
 time; retry later.** They previously returned 500, or hung for up to 10 minutes. Each search request is
 now bounded by `SolrRequestTimeout` in `ndex.properties` (seconds, default 15).
+- Singleton for the solr client across jvm, avoid the per-request churn creation and thread usage.
 
 ### Removed
 
@@ -27,7 +28,7 @@ only.
 ### Fixed
 
 - **Search no longer stalls server-wide under bursts of requests.** Every search used to build and tear
-down its own connections to Solr; the server now keeps one shared connection pool for its lifetime.
+down its own connections to Solr; the server now keeps one shared connection pool for its lifetime. [#225](https://github.com/ndexbio/ndex-rest/issues/225)
 
 ## [NDEx REST Helm 0.1.0] - Unreleased
 
