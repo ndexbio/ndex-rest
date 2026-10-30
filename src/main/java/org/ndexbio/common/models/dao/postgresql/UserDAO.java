@@ -49,6 +49,7 @@ import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.SolrDocumentList;
 import org.ndexbio.common.NdexClasses;
 import org.ndexbio.common.solr.UserIndexManager;
+import org.ndexbio.rest.Configuration;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
 import org.ndexbio.model.exceptions.ForbiddenOperationException;
@@ -468,20 +469,19 @@ public class UserDAO extends NdexDBDAO {
 
 		    if ( simpleQuery.getSearchString().length()==0)
 		    	simpleQuery.setSearchString("*:*");
-		try (UserIndexManager indexManager = new UserIndexManager()) {
-			SolrDocumentList l = indexManager.searchUsers(simpleQuery.getSearchString(), top, skipBlock * top);
+		UserIndexManager indexManager = Configuration.getInstance().getSolrObjectFactory().getUserIndexManager();
+		SolrDocumentList l = indexManager.searchUsers(simpleQuery.getSearchString(), top, skipBlock * top);
 
-			List<User> results = new ArrayList<>(l.size());
-			for (SolrDocument d : l) {
-				try {
-					results.add(getUserById(UUID.fromString((String) d.get(UserIndexManager.UUID)), true, false));
-				} catch ( ObjectNotFoundException o) {
-					System.out.print("Solr index might be corrupted. User " + 
-							(String) d.get(UserIndexManager.UUID) + " not found in Postgres DB." );
-				}
+		List<User> results = new ArrayList<>(l.size());
+		for (SolrDocument d : l) {
+			try {
+				results.add(getUserById(UUID.fromString((String) d.get(UserIndexManager.UUID)), true, false));
+			} catch ( ObjectNotFoundException o) {
+				System.out.print("Solr index might be corrupted. User " + 
+						(String) d.get(UserIndexManager.UUID) + " not found in Postgres DB." );
 			}
-			return new SolrSearchResult<>(l.getNumFound(), l.getStart(), results);
 		}
+		return new SolrSearchResult<>(l.getNumFound(), l.getStart(), results);
 			//return results;
 			
 	}

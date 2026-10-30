@@ -66,16 +66,17 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import ch.qos.logback.classic.Level;
 import org.ndexbio.common.models.dao.DAOFactory;
 import org.ndexbio.common.models.dao.postgresql.PostgresDAOFactory;
-import org.ndexbio.common.models.search.SearchProvider;
 import org.ndexbio.common.models.search.SearchProviderFactory;
 import org.ndexbio.common.models.search.SearchProviderFactoryImpl;
 import org.ndexbio.common.solr.SolrObjectFactory;
 import org.ndexbio.common.solr.SolrObjectFactoryImpl;
 
 
-public class Configuration
+public class Configuration implements AutoCloseable
 {
 	public static final String NDEX_EXPORTER_TIMEOUT = "NdexExporterTimeout";
+
+	public static final String SOLR_REQUEST_TIMEOUT = "SolrRequestTimeout";
 	
     public static final String UPLOADED_NETWORKS_PATH_PROPERTY = "Uploaded-Networks-Path";
     
@@ -102,6 +103,7 @@ public class Configuration
 	private static final String DOI_CREATOR="DOI_CREATOR";
 	
 	private static final String DEFAULT_NDEX_EXPORTER_TIMEOUT_VAL="600";
+	private static final String DEFAULT_SOLR_REQUEST_TIMEOUT_VAL="15";
 	private String solrURL;
 	private String ndexSystemUser ;
 	private String ndexSystemUserPassword;
@@ -214,7 +216,7 @@ public class Configuration
             // CX2 aspect reader that node indexes are built from.
             this.ndexRoot = getRequiredProperty("NdexRoot");
 
-            solrObjectFactory = new SolrObjectFactoryImpl(solrURL, this.ndexRoot);
+            solrObjectFactory = new SolrObjectFactoryImpl(solrURL, this.ndexRoot, getSolrRequestTimeout());
 			this.searchFactory = new SearchProviderFactoryImpl(solrObjectFactory, defaultMaxSearchResultRows);
 
             this.ndexSystemUser = getRequiredProperty("NdexSystemUser");
@@ -518,6 +520,21 @@ public class Configuration
     	}
     	return Long.parseLong(DEFAULT_NDEX_EXPORTER_TIMEOUT_VAL);
     }
+    /**
+     * Gets the upper bound on any one Solr request, in seconds, from configuration,
+     * defaulting to 15 seconds.
+     * @return timeout in seconds as a long
+     */
+    long getSolrRequestTimeout() {
+    	try {
+    		return Long.parseLong(_configurationProperties.getProperty(SOLR_REQUEST_TIMEOUT,
+    				DEFAULT_SOLR_REQUEST_TIMEOUT_VAL));
+    	} catch(NumberFormatException nfe) {
+    		_logger.warn("Unable to convert " + SOLR_REQUEST_TIMEOUT +
+    				     " parameter value to a number", nfe);
+    	}
+    	return Long.parseLong(DEFAULT_SOLR_REQUEST_TIMEOUT_VAL);
+    }
     public String getSystmUserName() {return this.ndexSystemUser;}
     public String getSystemUserPassword () {return this.ndexSystemUserPassword;}
     public String getNdexRoot()  {return this.ndexRoot;}
@@ -555,9 +572,28 @@ public class Configuration
 	
 	public DAOFactory getDAOFactory() {return daoFactory;}
 	
-	public SearchProvider getSearchProvider() throws NdexException { return searchFactory.getSearchProvider();}
+	public SearchProviderFactory getSearchProviderFactory() { return searchFactory; }
 	
 	public SolrObjectFactory getSolrObjectFactory() { return solrObjectFactory; }
+
+	/**
+	 * Sets SolrObjectFactory to use. This replaces factory set in
+	 * internal configuration and exists for testing purposes
+	 * @param factory SolrObjectFactory to use
+	 */
+	public void setSolrObjectFactory(SolrObjectFactory factory){
+		solrObjectFactory = factory;
+	}
+
+	/**
+	 * Releases the resources this configuration holds - the shared Solr client and its threads.
+	 * Only the owner of the process lifecycle calls this: a CLI main() when it finishes, or the
+	 * webapp when its context is destroyed.
+	 */
+	@Override
+	public void close() throws IOException {
+		solrObjectFactory.close();
+	}
 	
 	public int getDefaultMaxSearchResultRows() { return defaultMaxSearchResultRows;}
 }

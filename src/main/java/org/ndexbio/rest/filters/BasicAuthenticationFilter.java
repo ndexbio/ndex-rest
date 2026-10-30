@@ -357,11 +357,10 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter
                         User newUser = ADAuthenticator.getNewUser(username, password);
                         User created = dao.createNewUser(newUser, null);
                         dao.commit();
-                        try (UserIndexManager mgr = new UserIndexManager()) {
-                            mgr.addUser(created.getExternalId().toString(), created.getUserName(),
-                                    created.getFirstName(), created.getLastName(),
-                                    created.getDisplayName(), created.getDescription());
-                        }
+                        UserIndexManager mgr = Configuration.getInstance().getSolrObjectFactory().getUserIndexManager();
+                        mgr.addUser(created.getExternalId().toString(), created.getUserName(),
+                                created.getFirstName(), created.getLastName(),
+                                created.getDisplayName(), created.getDescription());
                         return created;
                     }
                     throw e;

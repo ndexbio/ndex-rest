@@ -106,9 +106,8 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 			NdexFolder folder = dao.getFolder(fileId, userId, accessKey );
 			checkRecordExists(folder);
 			folder.setOwner(username);
-			try(FolderIndexManager globalIdx = solrObjectFactory.getFolderIndexManager()) {
-				globalIdx.createIndex(folder, visibilityType);
-			}
+			FolderIndexManager globalIdx = solrObjectFactory.getFolderIndexManager();
+			globalIdx.createIndex(folder, visibilityType);
 
 		}
 
@@ -119,9 +118,8 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 			NdexShortcut shortcut = dao.getShortcut(fileId, userId);
 			checkRecordExists(shortcut);
 			shortcut.setOwner(username);
-			try(ShortcutIndexManager globalIdx = solrObjectFactory.getShortcutIndexManager()) {
-				globalIdx.createIndex(shortcut, visibilityType);
-			}
+			ShortcutIndexManager globalIdx = solrObjectFactory.getShortcutIndexManager();
+			globalIdx.createIndex(shortcut, visibilityType);
 		}
 	}
 
@@ -162,105 +160,102 @@ public class SolrTaskRebuildFileIdx extends NdexSystemTask {
 				idxScope = SolrIndexScope.global;
 
 			if (shouldDropPerNetworkIndex(createOnly, idxScope)) {
-				try (SingleNetworkSolrIdxManager idx2 = solrObjectFactory.getSingleNetworkSolrIdxManager(id)) {
-					idx2.dropIndex();
-				}
+				SingleNetworkSolrIdxManager idx2 = solrObjectFactory.getSingleNetworkSolrIdxManager(id);
+				idx2.dropIndex();
 			}
 
 			if (idxScope != SolrIndexScope.global) {
 				long t1 = Calendar.getInstance().getTimeInMillis();
 				int committedDocs;
-				try (SingleNetworkSolrIdxManager idx2 = solrObjectFactory.getSingleNetworkSolrIdxManager(id)) {
-					committedDocs = idx2.createIndexFromCx2(null, summary.getNodeCount());
-				}
+				SingleNetworkSolrIdxManager idx2 = solrObjectFactory.getSingleNetworkSolrIdxManager(id);
+				committedDocs = idx2.createIndexFromCx2(null, summary.getNodeCount());
 				long t = Calendar.getInstance().getTimeInMillis() - t1;
                 log.info("Takes {} secs to create index with {} documents", t / 1000, committedDocs);
 			}
 
-            try (GlobalNetworkIndexManager globalIdx = solrObjectFactory.getGlobalNetworkIndexManager()) {
-				// The folder is supplied here because NetworkSummary does not carry it; search filters
-                // on this field to resolve folder permissions without storing them in the index.
-                globalIdx.prepareIndexDocument(summary, visibilityType, dao.getNetworkFolder(fileId));
+            GlobalNetworkIndexManager globalIdx = solrObjectFactory.getGlobalNetworkIndexManager();
+			// The folder is supplied here because NetworkSummary does not carry it; search filters
+            // on this field to resolve folder permissions without storing them in the index.
+            globalIdx.prepareIndexDocument(summary, visibilityType, dao.getNetworkFolder(fileId));
 
-                String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/";
-				String cx2AspectPath = pathPrefix + id + "/" + CX2NetworkLoader.cx2AspectDirName + "/";
-				File attrFile = new File(cx2AspectPath + CxNetworkAttribute.ASPECT_NAME);
-				File declFile = new File(cx2AspectPath + CxAttributeDeclaration.ASPECT_NAME);
-				File functionAspectFile = new File(cx2AspectPath + FunctionTermElement.ASPECT_NAME);
+            String pathPrefix = Configuration.getInstance().getNdexRoot() + "/data/";
+			String cx2AspectPath = pathPrefix + id + "/" + CX2NetworkLoader.cx2AspectDirName + "/";
+			File attrFile = new File(cx2AspectPath + CxNetworkAttribute.ASPECT_NAME);
+			File declFile = new File(cx2AspectPath + CxAttributeDeclaration.ASPECT_NAME);
+			File functionAspectFile = new File(cx2AspectPath + FunctionTermElement.ASPECT_NAME);
 
-				// Always index network attributes (META + ALL behavior)
-				if (canReadCx2NetworkAttributes(attrFile, declFile)) {
+			// Always index network attributes (META + ALL behavior)
+			if (canReadCx2NetworkAttributes(attrFile, declFile)) {
 
-					ObjectMapper om = new ObjectMapper();
+				ObjectMapper om = new ObjectMapper();
 
-					CxAttributeDeclaration[] declarations = om.readValue(declFile, CxAttributeDeclaration[].class);
+				CxAttributeDeclaration[] declarations = om.readValue(declFile, CxAttributeDeclaration[].class);
 
-					CxNetworkAttribute[] attrs = om.readValue(attrFile, CxNetworkAttribute[].class);
-					attrs[0].extendToFullNode(declarations[0].getAttributesInAspect(CxNetworkAttribute.ASPECT_NAME));
+				CxNetworkAttribute[] attrs = om.readValue(attrFile, CxNetworkAttribute[].class);
+				attrs[0].extendToFullNode(declarations[0].getAttributesInAspect(CxNetworkAttribute.ASPECT_NAME));
 
-					List<String> indexWarnings = globalIdx.addCX2NetworkAttrToIndex(attrs[0]);
-					if (!indexWarnings.isEmpty())
-						for (String warning : indexWarnings)
-							System.err.println("Warning: " + warning);
+				List<String> indexWarnings = globalIdx.addCX2NetworkAttrToIndex(attrs[0]);
+				if (!indexWarnings.isEmpty())
+					for (String warning : indexWarnings)
+						System.err.println("Warning: " + warning);
+			}
+			else {
+				try (AspectIterator<NetworkAttributesElement> it = new AspectIterator<>(id,
+						NetworkAttributesElement.ASPECT_NAME, NetworkAttributesElement.class, pathPrefix)) {
+					while (it.hasNext()) {
+						NetworkAttributesElement e = it.next();
+						List<String> indexWarnings = globalIdx.addCXNetworkAttrToIndex(e);
+						if (!indexWarnings.isEmpty())
+							for (String warning : indexWarnings)
+								System.err.println("Warning: " + warning);
+
+					}
 				}
-				else {
-					try (AspectIterator<NetworkAttributesElement> it = new AspectIterator<>(id,
-							NetworkAttributesElement.ASPECT_NAME, NetworkAttributesElement.class, pathPrefix)) {
-						while (it.hasNext()) {
-							NetworkAttributesElement e = it.next();
-							List<String> indexWarnings = globalIdx.addCXNetworkAttrToIndex(e);
-							if (!indexWarnings.isEmpty())
-								for (String warning : indexWarnings)
-									System.err.println("Warning: " + warning);
+			}
 
-						}
+			// Always index node attributes and nodes (ALL behavior)
+            if (functionAspectFile.exists() && !ignoreCxFiles) {
+                ObjectMapper om = new ObjectMapper();
+
+				try (FileInputStream inputStream = new FileInputStream(cx2AspectPath + FunctionTermElement.ASPECT_NAME)) {
+
+					Iterator<FunctionTermElement> it = om.readerFor(FunctionTermElement.class).readValues(inputStream);
+
+					while (it.hasNext()) {
+						FunctionTermElement fun = it.next();
+						globalIdx.addFunctionTermToIndex(fun);
 					}
 				}
 
-				// Always index node attributes and nodes (ALL behavior)
-                if (functionAspectFile.exists() && !ignoreCxFiles) {
-                    ObjectMapper om = new ObjectMapper();
+                processCx2Nodes(cx2AspectPath, om, globalIdx);
 
-					try (FileInputStream inputStream = new FileInputStream(cx2AspectPath + FunctionTermElement.ASPECT_NAME)) {
-
-						Iterator<FunctionTermElement> it = om.readerFor(FunctionTermElement.class).readValues(inputStream);
-
-						while (it.hasNext()) {
-							FunctionTermElement fun = it.next();
-							globalIdx.addFunctionTermToIndex(fun);
-						}
-					}
-
-                    processCx2Nodes(cx2AspectPath, om, globalIdx);
-
-                } else {
-                    try (AspectIterator<FunctionTermElement> it = new AspectIterator<>(fileId.toString(),
-                            FunctionTermElement.ASPECT_NAME, FunctionTermElement.class, pathPrefix)) {
-                        while (it.hasNext()) {
-                            FunctionTermElement fun = it.next();
-                            globalIdx.addFunctionTermToIndex(fun);
-                        }
-                    }
-
-                    try (AspectIterator<NodeAttributesElement> it = new AspectIterator<>(fileId.toString(),
-                            NodeAttributesElement.ASPECT_NAME, NodeAttributesElement.class, pathPrefix)) {
-                        while (it.hasNext()) {
-                            NodeAttributesElement e = it.next();
-                            globalIdx.addCXNodeAttrToIndex(e);
-                        }
-                    }
-
-                    try (AspectIterator<NodesElement> it = new AspectIterator<>(fileId.toString(), NodesElement.ASPECT_NAME,
-                            NodesElement.class, pathPrefix)) {
-                        while (it.hasNext()) {
-                            NodesElement e = it.next();
-                            globalIdx.addCXNodeToIndex(e);
-                        }
+            } else {
+                try (AspectIterator<FunctionTermElement> it = new AspectIterator<>(fileId.toString(),
+                        FunctionTermElement.ASPECT_NAME, FunctionTermElement.class, pathPrefix)) {
+                    while (it.hasNext()) {
+                        FunctionTermElement fun = it.next();
+                        globalIdx.addFunctionTermToIndex(fun);
                     }
                 }
 
-                globalIdx.commit();
+                try (AspectIterator<NodeAttributesElement> it = new AspectIterator<>(fileId.toString(),
+                        NodeAttributesElement.ASPECT_NAME, NodeAttributesElement.class, pathPrefix)) {
+                    while (it.hasNext()) {
+                        NodeAttributesElement e = it.next();
+                        globalIdx.addCXNodeAttrToIndex(e);
+                    }
+                }
+
+                try (AspectIterator<NodesElement> it = new AspectIterator<>(fileId.toString(), NodesElement.ASPECT_NAME,
+                        NodesElement.class, pathPrefix)) {
+                    while (it.hasNext()) {
+                        NodesElement e = it.next();
+                        globalIdx.addCXNodeToIndex(e);
+                    }
+                }
             }
+
+            globalIdx.commit();
 
             try {
 				dao.setFlag(this.fileId, "iscomplete", true);

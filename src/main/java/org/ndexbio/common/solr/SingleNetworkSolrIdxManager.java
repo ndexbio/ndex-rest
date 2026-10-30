@@ -54,7 +54,7 @@ import org.slf4j.LoggerFactory;
  * database reports so that a rebuild which produces no documents for a network that has
  * nodes fails loudly instead of leaving an empty core behind reporting success.
  */
-public class SingleNetworkSolrIdxManager implements AutoCloseable {
+public class SingleNetworkSolrIdxManager {
 
 	private static final Logger logger = LoggerFactory.getLogger(SingleNetworkSolrIdxManager.class);
 
@@ -260,7 +260,7 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable {
 
 	private void addNodeIndex(Long id, String name, Collection<String> represents,
 			Collection<String> alias, Collection<String> txtArray)
-			throws SolrServerException, IOException {
+			throws SolrServerException, IOException, NdexException {
 
 		SolrInputDocument doc = NodeIndexDocumentBuilder.buildNodeDocument(id, name, represents,
 				alias, txtArray);
@@ -270,11 +270,6 @@ public class SingleNetworkSolrIdxManager implements AutoCloseable {
 			client.add(collectionName, docs);
 			docs.clear();
 		}
-	}
-
-	@Override
-	public void close() {
-		client.close();
 	}
 
 	protected String getNetworkId() {

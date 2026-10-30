@@ -11,6 +11,7 @@ import org.ndexbio.common.models.dao.ShortcutDAO;
 import org.ndexbio.common.solr.GlobalNetworkIndexManager;
 import org.ndexbio.common.solr.NFSIndexManager;
 import org.ndexbio.common.solr.SolrClientWrapper;
+import org.ndexbio.common.solr.SolrUnavailableException;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.object.*;
 import org.ndexbio.model.object.network.NetworkSummary;
@@ -93,6 +94,8 @@ public class NFSSearchProvider implements SearchProvider {
                         .toList();
             }
 
+        } catch (SolrUnavailableException e) {
+            throw e;
         } catch (Exception e) {
             throw new NdexException("Failed to fetch data about search results. " + e.getMessage(), e);
         }
@@ -198,9 +201,6 @@ public class NFSSearchProvider implements SearchProvider {
         String uuid = (String)solrDocument.get(NFSIndexManager.UUID);
         return UUID.fromString(uuid);
     }
-
-        @Override
-    public void close() { delegate.close(); }
 
     private static final class SearchOnlyManager extends NFSIndexManager<Void> {
         SearchOnlyManager(SolrClientWrapper solrClientWrapper, int maxResults) {

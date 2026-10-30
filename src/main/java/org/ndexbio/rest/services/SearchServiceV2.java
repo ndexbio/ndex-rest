@@ -79,6 +79,8 @@ import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
 import org.ndexbio.common.persistence.CXNetworkLoader;
 import org.ndexbio.common.solr.SingleNetworkSolrIdxManager;
+import org.ndexbio.common.solr.SolrObjectFactory;
+import org.ndexbio.common.solr.SolrUnavailableException;
 import org.ndexbio.common.util.NdexUUIDFactory;
 import org.ndexbio.model.errorcodes.NDExError;
 import org.ndexbio.model.exceptions.BadRequestException;
@@ -104,6 +106,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 
 @Path("/v2/search")
 public class SearchServiceV2 extends NdexService {
@@ -117,6 +120,8 @@ public class SearchServiceV2 extends NdexService {
 	
 	static final int networkQuerySizeLimit = 500000;
 
+	private final SolrObjectFactory solrObjectFactory;
+
 	/**************************************************************************
 	 * Injects the HTTP request into the base class to be used by
 	 * getLoggedInUser().
@@ -126,6 +131,7 @@ public class SearchServiceV2 extends NdexService {
 	 **************************************************************************/
 	public SearchServiceV2(@Context HttpServletRequest httpRequest) {
 		super(httpRequest);
+		this.solrObjectFactory = Configuration.getInstance().getSolrObjectFactory();
 	}
 	
 	
@@ -144,6 +150,9 @@ public class SearchServiceV2 extends NdexService {
 	@Operation(summary = "Search Users", description = "Returns a SearchResult object which contains an array of User objects and the total hit count of the search.")
 	@Produces("application/json")
 	
+	@ApiResponse(responseCode = "200", description = "The matching users and the total hit count")
+	@ApiResponse(responseCode = "500", description = "Server error")
+	@ApiResponse(responseCode = "503", description = "Search service unavailable; retry later")
 	public static SolrSearchResult<User> findUsers(
 			SimpleQuery simpleUserQuery, 
 			@DefaultValue("0") @QueryParam("start") int skipBlocks,
@@ -195,6 +204,9 @@ public class SearchServiceV2 extends NdexService {
 	@Produces("application/json")
 	@Consumes("application/json")
 	// TODO: need to node accountName is a filter and you cannot use wildcards
+	@ApiResponse(responseCode = "200", description = "The matching networks and the total hit count")
+	@ApiResponse(responseCode = "500", description = "Server error")
+	@ApiResponse(responseCode = "503", description = "Search service unavailable; retry later")
 	public NetworkSearchResult searchNetwork(
 			final SimpleNetworkQuery query,
 			@DefaultValue("0") @QueryParam("start") int skipBlocks,
@@ -225,6 +237,9 @@ public class SearchServiceV2 extends NdexService {
 	@Operation(summary = "Query Network Nodes", description = "Search for nodes within a specific network using a query string. Returns a list of matching nodes with their properties. If the network is not public, an optional `accesskey` grants anonymous read access when it matches an enabled access key on the network itself, on any ancestor folder in its folder hierarchy, or on a folder holding a same-owner shortcut to the network.")
 	@Produces("application/json")
    
+	@ApiResponse(responseCode = "200", description = "The ids of the matching nodes")
+	@ApiResponse(responseCode = "500", description = "Server error")
+	@ApiResponse(responseCode = "503", description = "Search service unavailable; retry later")
 	public SolrDocumentList queryNetworkNodes(
 			@PathParam("networkId") final String networkIdStr,
 			@QueryParam("accesskey") String accessKey,
@@ -236,21 +251,21 @@ public class SearchServiceV2 extends NdexService {
 		
 		UUID networkId = UUID.fromString(networkIdStr);
 
+		SingleNetworkSolrIdxManager solr = solrObjectFactory.getSingleNetworkSolrIdxManager(networkId.toString());
 		try (PostgresNetworkDAO dao = new PostgresNetworkDAO())  {
 			UUID userId = getLoggedInUserId();
 			if ( !dao.isReadable(networkId, userId) && !dao.accessKeyIsValid(networkId, accessKey)) {
 				throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
 			}
 			//checkIfQueryIsAllowed(networkId, dao);
-			getSolrIdxReady(networkId, dao);
+			// Any failure carries its own reason - an unreadable aspect directory names the path
+			// and the OS user - so let it propagate rather than flattening it to a generic message.
+			solr.ensureReady(dao.getNodeCount(networkId));
 
 		}   
 		
-		try (SingleNetworkSolrIdxManager solr = Configuration.getInstance().getSolrObjectFactory()
-				.getSingleNetworkSolrIdxManager(networkId.toString())) {
-			SolrDocumentList r = solr.getNodeIdsByQuery(queryParameters.getSearchString(), limit);
-			return r;
-		}
+		SolrDocumentList r = solr.getNodeIdsByQuery(queryParameters.getSearchString(), limit);
+		return r;
 	/*	Client client = ClientBuilder.newBuilder().build();
 		
 		Map<String, Object> queryEntity = new TreeMap<>();
@@ -283,6 +298,10 @@ public class SearchServiceV2 extends NdexService {
 	@Operation(summary = "Query Network", description = "Returns a CX network that is a 'neighborhood' subnetwork of the network specified by networkid. If the network is not public, an optional `accesskey` grants anonymous read access when it matches an enabled access key on the network itself, on any ancestor folder in its folder hierarchy, or on a folder holding a same-owner shortcut to the network.")
 	@Produces("application/json")
 
+	@ApiResponse(responseCode = "200", description = "The query result as CX")
+	@ApiResponse(responseCode = "201", description = "The query result was saved as a new network; the body holds its URL")
+	@ApiResponse(responseCode = "500", description = "Server error")
+	@ApiResponse(responseCode = "503", description = "Search service unavailable; retry later")
 	public Response queryNetworkAsCX(
 			@PathParam("networkId") final String networkIdStr,
 			@QueryParam("accesskey") String accessKey,
@@ -312,7 +331,7 @@ public class SearchServiceV2 extends NdexService {
 				throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
 			}
 			networkName = dao.getNetworkName(networkId);
-			getSolrIdxReady(networkId, dao);
+			solrObjectFactory.getSingleNetworkSolrIdxManager(networkId.toString()).ensureReady(dao.getNodeCount(networkId));
 			
 		}   
 /*		ProvenanceEntity ei = new ProvenanceEntity();
@@ -360,18 +379,6 @@ public class SearchServiceV2 extends NdexService {
         
 	}
 
-	public static void getSolrIdxReady(UUID networkId, PostgresNetworkDAO dao)
-			throws SQLException, ObjectNotFoundException, SolrServerException, IOException, NdexException {
-		int nodeCount = dao.getNodeCount(networkId);
-
-		try (SingleNetworkSolrIdxManager solr = Configuration.getInstance().getSolrObjectFactory()
-				.getSingleNetworkSolrIdxManager(networkId.toString())) {
-			// Any failure carries its own reason - an unreadable aspect directory names the path
-			// and the OS user - so let it propagate rather than flattening it to a generic message.
-			solr.ensureReady(nodeCount);
-		}
-	}
-	
 	public static Response saveQueryResult(String networkName, UUID ownerUUID,String ownerName,
 			InputStream in) throws SQLException, URISyntaxException {
 		// create a network entry in db
@@ -482,6 +489,10 @@ public class SearchServiceV2 extends NdexService {
 	@Operation(summary = "Interconnect Query", description = "Returns a CX network that is a 'neighborhood' subnetwork where all the paths must start and end at one of the query nodes in the network specified by networkid. If the network is not public, an optional `accesskey` grants anonymous read access when it matches an enabled access key on the network itself, on any ancestor folder in its folder hierarchy, or on a folder holding a same-owner shortcut to the network.")
 	@Produces("application/json")
 
+	@ApiResponse(responseCode = "200", description = "The query result as CX")
+	@ApiResponse(responseCode = "201", description = "The query result was saved as a new network; the body holds its URL")
+	@ApiResponse(responseCode = "500", description = "Server error")
+	@ApiResponse(responseCode = "503", description = "Search service unavailable; retry later")
 	public Response interconnectQuery(
 			@PathParam("networkId") final String networkIdStr,
 			@QueryParam("accesskey") String accessKey,
@@ -512,7 +523,7 @@ public class SearchServiceV2 extends NdexService {
 			if ( !dao.isReadable(networkId, userId) && !dao.accessKeyIsValid(networkId, accessKey)) {
 				throw new UnauthorizedOperationException ("Unauthorized access to network " + networkId);
 			}
-			getSolrIdxReady(networkId, dao);
+			solrObjectFactory.getSingleNetworkSolrIdxManager(networkId.toString()).ensureReady(dao.getNodeCount(networkId));
 			networkName = dao.getNetworkName(networkId);
 			
 		}   
@@ -628,6 +639,9 @@ public class SearchServiceV2 extends NdexService {
 	@Operation(summary = "Search Networks by Gene/Protein", description = "Returns a SearchResult object which contains an array of NetworkSummary objects and total hit count of the search.")
 	@Produces("application/json")
 	@Consumes("application/json") 
+	@ApiResponse(responseCode = "200", description = "The matching networks and the total hit count")
+	@ApiResponse(responseCode = "500", description = "Server error")
+	@ApiResponse(responseCode = "503", description = "Search service unavailable; retry later")
 	public NetworkSearchResult searchNetworkByGenes(
 			final SimpleQuery geneQuery,
 			@DefaultValue("0") @QueryParam("start") int skipBlocks,
@@ -643,6 +657,8 @@ public class SearchServiceV2 extends NdexService {
 				NetworkSearchResult result = dao.findNetworks(finalQuery, skipBlocks, blockSize, this.getLoggedInUser());
 				return result;
 
+	        } catch (SolrUnavailableException e) {
+	        	throw e;
 	        } catch (Exception e) {
 	        	throw new NdexException(e.getMessage());
 	        }
@@ -680,6 +696,8 @@ public class SearchServiceV2 extends NdexService {
 			NetworkSearchResult result = dao.findNetworks(finalQuery, skipBlocks, blockSize, this.getLoggedInUser());
 			return result;
 
+        } catch (SolrUnavailableException e) {
+        	throw e;
         } catch (Exception e) {
         	throw new NdexException(e.getMessage());
         }

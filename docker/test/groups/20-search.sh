@@ -31,7 +31,7 @@ while true; do
     api_fail "POST /v2/search/network → 200 OK but UUID ${V2_UUIDS[0]} not found within ${LOAD_TIMEOUT}s. Body: ${SEARCH_BODY:0:500}"
   fi
   sleep 3; (( ELAPSED += 3 )) || true
-  echo "  Waiting for ndex-networks Solr index... (${ELAPSED}s)"
+  echo "  Waiting for ndex-nfs Solr index... (${ELAPSED}s)"
 done
 api_pass "POST /v2/search/network → 200 OK, WP1984 UUID found in results (Solr reindex confirmed)"
 
@@ -502,3 +502,98 @@ if [[ -z "${REMOTE_NDEX_URL}" ]]; then
   fi
 fi
 
+
+# ── STEP: a burst of node searches all succeed ───────────────────────────────
+# Searches share one Solr client per JVM. Each used to build and tear down its own client stack,
+# so concurrent searches multiplied threads and connections until search stalled server-wide.
+
+step "A burst of concurrent node searches all return 200"
+
+BURST_CODES=$(mktemp)
+for ROUND in 1 2 3 4 5; do
+  for UUID in "${V2_UUIDS[0]}" "${V2_UUIDS[1]}"; do
+    for TERM in TP53 BRCA1 EGFR; do
+      CALL_NUM=$((CALL_NUM+1))
+      curl -s -o /dev/null -w "%{http_code}\n" -X POST \
+        -H "Content-Type: application/json" \
+        -d "{\"searchString\":\"${TERM}\"}" \
+        "${BASE_URL}/v2/search/network/${UUID}/nodes" >> "${BURST_CODES}" &
+    done
+  done
+done
+wait
+BURST_TOTAL=$(wc -l < "${BURST_CODES}" | tr -d ' ')
+BURST_OK=$(grep -c '^200$' "${BURST_CODES}" || true)
+BURST_OTHER=$(grep -v '^200$' "${BURST_CODES}" | sort | uniq -c | tr '\n' ' ' || true)
+rm -f "${BURST_CODES}"
+if [[ "${BURST_TOTAL}" == "30" && "${BURST_OK}" == "30" ]]; then
+  api_pass "30 concurrent POST /v2/search/network/{id}/nodes → all 200"
+else
+  api_fail "concurrent node searches: ${BURST_OK}/${BURST_TOTAL} returned 200. Others: ${BURST_OTHER}"
+fi
+
+# ── STEP: Solr down answers 503, and search recovers without an ndex restart ──
+# With Solr stopped, every search path must answer 503 (retry later), not 500 or a 10-minute hang.
+# Once Solr is back, the same JVM's shared client must serve again: an ndex restart was what ended
+# the 2026-10-29 outage, and must no longer be needed. Read-only requests only.
+
+if [[ -z "${REMOTE_NDEX_URL}" ]]; then
+  step "Search answers 503 while Solr is down and recovers once it is back"
+
+  # path|body|auth — all POST, read-only
+  SOLR_DOWN_CASES=(
+    "/v2/search/network?start=0&size=10|{\"searchString\":\"WP1984\"}|anon"
+    "/v2/search/network/genes?start=0&size=10|{\"searchString\":\"*\"}|anon"
+    "/v2/search/network/${V2_UUIDS[0]}/nodes|{\"searchString\":\"TP53\"}|anon"
+    "/v2/search/user?start=0&size=10|{\"searchString\":\"${TEST_USER}\"}|anon"
+    "/network/textsearch/0/10|{\"searchString\":\"WP1984\"}|anon"
+    "/v3/search/files?start=0&size=10|{\"searchString\":\"BindingDB\"}|user"
+  )
+
+  docker exec "${CONTAINER_NAME}" supervisorctl stop solr
+  echo "  Solr stopped"
+
+  for CASE in "${SOLR_DOWN_CASES[@]}"; do
+    IFS='|' read -r CASE_PATH CASE_BODY CASE_AUTH <<< "${CASE}"
+    CASE_CRED=""
+    [[ "${CASE_AUTH}" == "user" ]] && CASE_CRED="${TEST_USER}:${TEST_PASS}"
+    CALL_NUM=$((CALL_NUM+1))
+    CASE_HTTP=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 -X POST \
+      ${CASE_CRED:+-u "${CASE_CRED}"} -H "Content-Type: application/json" -d "${CASE_BODY}" \
+      "${BASE_URL}${CASE_PATH}")
+    if [[ "${CASE_HTTP}" == "503" ]]; then
+      api_pass "POST ${CASE_PATH} with Solr down → 503"
+    else
+      docker exec "${CONTAINER_NAME}" supervisorctl start solr
+      api_fail "POST ${CASE_PATH} with Solr down → HTTP ${CASE_HTTP} (expected 503)"
+    fi
+  done
+
+  docker exec "${CONTAINER_NAME}" supervisorctl start solr
+  echo "  Solr started — waiting for search to answer again (no ndex restart)..."
+  MAX_WAIT=180
+  ELAPSED=0
+  until curl -s -o /dev/null -w "%{http_code}" -X POST -H "Content-Type: application/json" \
+        -d '{"searchString":"WP1984"}' "${BASE_URL}/v2/search/network?start=0&size=10" | grep -q '^200$'; do
+    if [[ ${ELAPSED} -ge ${MAX_WAIT} ]]; then
+      api_fail "search did not recover within ${MAX_WAIT}s of Solr restarting"
+    fi
+    echo -e "  ${CYAN}Waiting for Solr... (${ELAPSED}s)${NC}"
+    sleep 5; (( ELAPSED += 5 )) || true
+  done
+
+  for CASE in "${SOLR_DOWN_CASES[@]}"; do
+    IFS='|' read -r CASE_PATH CASE_BODY CASE_AUTH <<< "${CASE}"
+    CASE_CRED=""
+    [[ "${CASE_AUTH}" == "user" ]] && CASE_CRED="${TEST_USER}:${TEST_PASS}"
+    CALL_NUM=$((CALL_NUM+1))
+    CASE_HTTP=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 -X POST \
+      ${CASE_CRED:+-u "${CASE_CRED}"} -H "Content-Type: application/json" -d "${CASE_BODY}" \
+      "${BASE_URL}${CASE_PATH}")
+    if [[ "${CASE_HTTP}" == "200" ]]; then
+      api_pass "POST ${CASE_PATH} after Solr restart, same ndex JVM → 200"
+    else
+      api_fail "POST ${CASE_PATH} after Solr restart → HTTP ${CASE_HTTP} (expected 200 without restarting ndex)"
+    fi
+  done
+fi

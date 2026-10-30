@@ -64,6 +64,7 @@ import org.ndexbio.common.models.dao.postgresql.PostgresNetworkDAO;
 import org.ndexbio.common.models.dao.postgresql.PostgresShortcutDAO;
 import org.ndexbio.common.models.dao.postgresql.RequestDAO;
 import org.ndexbio.common.models.dao.postgresql.UserDAO;
+import org.ndexbio.common.solr.SolrObjectFactory;
 import org.ndexbio.common.solr.UserIndexManager;
 import org.ndexbio.common.util.Util;
 import org.ndexbio.model.exceptions.DuplicateObjectException;
@@ -112,6 +113,8 @@ public class UserServiceV2 extends NdexService {
 			+ "should use GET /v3/users/{userid}/home and the /v3/files/folders endpoints.";
 
 
+	private final SolrObjectFactory solrObjectFactory;
+
 	/**************************************************************************
 	 * Injects the HTTP request into the base class to be used by
 	 * getLoggedInUser().
@@ -121,6 +124,7 @@ public class UserServiceV2 extends NdexService {
 	 **************************************************************************/
 	public UserServiceV2(@Context HttpServletRequest httpRequest) {
 		super(httpRequest);
+		this.solrObjectFactory = Configuration.getInstance().getSolrObjectFactory();
 	}
 	
 	/**************************************************************************
@@ -140,6 +144,9 @@ public class UserServiceV2 extends NdexService {
 	@Operation(summary = "Verify a User", description = "Verify the given user with UUID and verificationCode.")
 	@NdexOpenFunction
 	@Produces("text/plain")
+	@ApiResponse(responseCode = "200", description = "The account was verified")
+	@ApiResponse(responseCode = "500", description = "Server error")
+	@ApiResponse(responseCode = "503", description = "Search service unavailable; retry later")
 	public static String verifyUser(@PathParam("userid") String userUUID,
 					@QueryParam("verificationCode") String verificationCode		
 			)
@@ -152,14 +159,13 @@ public class UserServiceV2 extends NdexService {
 			UUID userId = UUID.fromString(userUUID);
 			String returnMessage = userdao.verifyUser(userId, verificationCode);
 			User u = userdao.getUserById(userId, true,false);
-			try (UserIndexManager mgr = new UserIndexManager()) {
-				mgr.addUser(userUUID, u.getUserName(), u.getFirstName(), u.getLastName(), u.getDisplayName(),
-						u.getDescription());
-				userdao.commit();
-				return // userdao.getUserById(UUID.fromString(userUUID)); 
-						returnMessage;
-				//"User account " + accountName + " has been activated.";
-			}
+			UserIndexManager mgr = Configuration.getInstance().getSolrObjectFactory().getUserIndexManager();
+			mgr.addUser(userUUID, u.getUserName(), u.getFirstName(), u.getLastName(), u.getDisplayName(),
+					u.getDescription());
+			userdao.commit();
+			return // userdao.getUserById(UUID.fromString(userUUID)); 
+					returnMessage;
+			//"User account " + accountName + " has been activated.";
 		}
 	}
 
@@ -168,6 +174,10 @@ public class UserServiceV2 extends NdexService {
 	@Operation(summary = "Create User", description = "Create a new user based on a JSON object specifying username, password, and emailAddress.")
 	@Produces("text/plain")
 	@Consumes("application/json")
+	@ApiResponse(responseCode = "201", description = "The user was created; the body holds its URL")
+	@ApiResponse(responseCode = "202", description = "The user was created and must verify their email address before signing in")
+	@ApiResponse(responseCode = "500", description = "Server error")
+	@ApiResponse(responseCode = "503", description = "Search service unavailable; retry later")
 	public Response createUser(final User newUser, 
 			@QueryParam("idtoken") String id_token)
 			throws Exception {
@@ -211,10 +221,9 @@ public class UserServiceV2 extends NdexService {
 			UUID newUserUUID = user.getExternalId();
 			
 			if ( verificationCode == null) {
-				try (UserIndexManager mgr = new UserIndexManager()) {
-					mgr.addUser(user.getExternalId().toString(), user.getUserName(), user.getFirstName(),
-							user.getLastName(), user.getDisplayName(), user.getDescription());
-				}
+				UserIndexManager mgr = solrObjectFactory.getUserIndexManager();
+				mgr.addUser(user.getExternalId().toString(), user.getUserName(), user.getFirstName(),
+						user.getLastName(), user.getDisplayName(), user.getDescription());
 			}
 			
 			userdao.commit();
@@ -300,10 +309,9 @@ public class UserServiceV2 extends NdexService {
 					
 					User user = userdao.createNewUser(newUser, null);
 					
-					try (UserIndexManager mgr = new UserIndexManager()) {
-							mgr.addUser(user.getExternalId().toString(), user.getUserName(), user.getFirstName(),
-									user.getLastName(), user.getDisplayName(), user.getDescription());
-					}
+					UserIndexManager mgr = Configuration.getInstance().getSolrObjectFactory().getUserIndexManager();
+					mgr.addUser(user.getExternalId().toString(), user.getUserName(), user.getFirstName(),
+							user.getLastName(), user.getDisplayName(), user.getDescription());
 
 					userdao.commit();
 					String emailTemplate = Util.readFile(Configuration.getInstance().getNdexRoot() + "/conf/Server_notification_email_template.html");
@@ -485,6 +493,9 @@ public class UserServiceV2 extends NdexService {
 	@Operation(summary = "Delete User", description = "Deletes the authenticated user, removing any other objects in the database that depend on the user.")
 	@Produces("application/json")
 
+	@ApiResponse(responseCode = "204", description = "The user was deleted")
+	@ApiResponse(responseCode = "500", description = "Server error")
+	@ApiResponse(responseCode = "503", description = "Search service unavailable; retry later")
 	public void deleteUser(@PathParam("userid") final String userIdStr)
 			throws Exception {
 
@@ -493,11 +504,10 @@ public class UserServiceV2 extends NdexService {
 			throw new NdexException ("An authenticated user can only delete himself.");
 		try (UserDAO dao = new UserDAO()) {
 			dao.deleteUserById(getLoggedInUser().getExternalId());
-			try (UserIndexManager mgr = new UserIndexManager()) {
+			UserIndexManager mgr = solrObjectFactory.getUserIndexManager();
 			mgr.deleteUser(getLoggedInUser().getExternalId().toString());
 			dao.commit();
 	//		logger.info("[end: User {} deleted]", getLoggedInUser().getUserName());
-			}
 		} 
 	}
 
@@ -555,6 +565,9 @@ public class UserServiceV2 extends NdexService {
 	@Operation(summary = "Update User", description = "Updates the authenticated user based on the serialized user object in the PUT data.")
 	@Produces("application/json")
 
+	@ApiResponse(responseCode = "204", description = "The user was updated")
+	@ApiResponse(responseCode = "500", description = "Server error")
+	@ApiResponse(responseCode = "503", description = "Search service unavailable; retry later")
 	public void updateUser(@PathParam("userid") final String userId, final User updatedUser)
 			throws Exception {
 		
@@ -580,27 +593,26 @@ public class UserServiceV2 extends NdexService {
 		
 		try (UserDAO dao = new UserDAO ()){
 			User user = dao.updateUser(updatedUser, getLoggedInUser().getExternalId());
-			try (UserIndexManager mgr = new UserIndexManager()) {
-				// check if email address has been changed.
-				if( !oldEmail.equals(newEmail)) {
-					// check if other user with the same email address exists.	
+			UserIndexManager mgr = solrObjectFactory.getUserIndexManager();
+			// check if email address has been changed.
+			if( !oldEmail.equals(newEmail)) {
+				// check if other user with the same email address exists.	
                     User u = dao.getUserByEmail(newEmail, false);
-					if (u != null && !u.getExternalId().equals(user.getExternalId())) {
-						throw new NdexException("User with email address " + newEmail + " already exists.");
-					}
-					//check if there are any account using the new email address
-					try { 
-						u = dao.getUserByAccountName(newEmail, false, false);					
-					    if (u != null && !u.getExternalId().equals(user.getExternalId())) {
-						   throw new NdexException("User with account name " + newEmail + " already exists.");
-					     }
-					} catch (ObjectNotFoundException e) {   
-						// do nothing. It is expected that the account name is not found.
-					}
-				}					
-				mgr.updateUser(userId, user.getUserName(), user.getFirstName(), user.getLastName(), user.getDisplayName(), user.getDescription());
-				dao.commit();
-			}
+				if (u != null && !u.getExternalId().equals(user.getExternalId())) {
+					throw new NdexException("User with email address " + newEmail + " already exists.");
+				}
+				//check if there are any account using the new email address
+				try { 
+					u = dao.getUserByAccountName(newEmail, false, false);					
+				    if (u != null && !u.getExternalId().equals(user.getExternalId())) {
+					   throw new NdexException("User with account name " + newEmail + " already exists.");
+				     }
+				} catch (ObjectNotFoundException e) {   
+					// do nothing. It is expected that the account name is not found.
+				}
+			}					
+			mgr.updateUser(userId, user.getUserName(), user.getFirstName(), user.getLastName(), user.getDisplayName(), user.getDescription());
+			dao.commit();
 			
 			if ( !oldEmail.equals(newEmail)) {
 				String emailTemplate = Util.readFile(Configuration.getInstance().getNdexRoot() + "/conf/Server_notification_email_template.html");

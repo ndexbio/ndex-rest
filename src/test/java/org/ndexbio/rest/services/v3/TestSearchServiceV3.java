@@ -1,7 +1,21 @@
 package org.ndexbio.rest.services.v3;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.ws.rs.core.MediaType;
+
+import org.jboss.resteasy.mock.MockDispatcherFactory;
+import org.jboss.resteasy.mock.MockHttpRequest;
+import org.jboss.resteasy.mock.MockHttpResponse;
+import org.jboss.resteasy.spi.Dispatcher;
 import org.junit.Assert;
 import org.junit.Test;
+import org.ndexbio.common.models.search.SearchProvider;
+import org.ndexbio.common.models.search.SearchProviderFactory;
+import org.ndexbio.common.solr.SolrObjectFactory;
+import org.ndexbio.common.solr.SolrUnavailableException;
+import org.ndexbio.rest.exceptions.mappers.DefaultExceptionMapper;
+import org.ndexbio.rest.exceptions.mappers.NdexExceptionMapper;
+import org.ndexbio.rest.exceptions.mappers.SolrUnavailableExceptionMapper;
 import org.ndexbio.model.exceptions.BadRequestException;
 import org.ndexbio.model.exceptions.UnauthorizedOperationException;
 import org.ndexbio.model.network.query.CXObjectFilter;
@@ -11,11 +25,48 @@ import org.ndexbio.model.object.network.VisibilityType;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.net.ConnectException;
 import java.util.UUID;
+
+import static org.easymock.EasyMock.*;
 
 public class TestSearchServiceV3 {
 
-    private static final SearchServiceV3 _searchService = new SearchServiceV3(null);
+    private static final SearchServiceV3 _searchService = new SearchServiceV3(null, null, null);
+
+    /**
+     * End to end through RESTEasy dispatch: Solr being unreachable answers 503, even with the
+     * NdexException and Throwable catch-all mappers registered alongside the specific one.
+     */
+    @Test
+    public void searchFilesAnswers503WhenSolrIsUnavailable() throws Exception {
+        HttpServletRequest httpRequest = createNiceMock(HttpServletRequest.class);
+        SearchProvider provider = createMock(SearchProvider.class);
+        expect(provider.searchFiles(anyObject(SimpleFileQuery.class), isNull(), isNull(), anyInt(), anyInt()))
+                .andThrow(new SolrUnavailableException(new ConnectException("Connection refused")));
+        SearchProviderFactory providerFactory = createMock(SearchProviderFactory.class);
+        expect(providerFactory.getSearchProvider()).andReturn(provider);
+        SolrObjectFactory solrFactory = createMock(SolrObjectFactory.class);
+        replay(httpRequest, provider, providerFactory, solrFactory);
+
+        Dispatcher dispatcher = MockDispatcherFactory.createDispatcher();
+        dispatcher.getRegistry().addSingletonResource(
+                new SearchServiceV3(httpRequest, solrFactory, providerFactory));
+        dispatcher.getProviderFactory().registerProvider(SolrUnavailableExceptionMapper.class);
+        dispatcher.getProviderFactory().registerProvider(NdexExceptionMapper.class);
+        dispatcher.getProviderFactory().registerProvider(DefaultExceptionMapper.class);
+
+        MockHttpRequest request = MockHttpRequest.post("/v3/search/files")
+                .content("{\"searchString\":\"brca1\"}".getBytes())
+                .contentType(MediaType.APPLICATION_JSON);
+        MockHttpResponse response = new MockHttpResponse();
+        dispatcher.invoke(request, response);
+
+        Assert.assertEquals(503, response.getStatus());
+        Assert.assertTrue(response.getContentAsString(), response.getContentAsString()
+                .contains(SolrUnavailableException.MESSAGE));
+        verify(provider, providerFactory);
+    }
 
     // ---------- parseUuid: direct unit tests ----------
 

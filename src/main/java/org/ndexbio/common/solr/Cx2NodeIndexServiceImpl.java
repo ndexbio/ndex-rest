@@ -237,7 +237,7 @@ public class Cx2NodeIndexServiceImpl implements Cx2NodeIndexService {
 			while (it.hasNext()) {
 				FunctionTermElement functionTerm = it.next();
 				List<String> terms =
-						NetworkGlobalIndexManager.getIndexableStringsFromFunctionTerm(functionTerm);
+						NodeIndexFields.getIndexableStringsFromFunctionTerm(functionTerm);
 				if (terms.size() > 0) {
 					NodeIndexEntry e = result.get(functionTerm.getNodeID());
 					if (e == null) { // need to add a new entry

@@ -39,28 +39,16 @@ import java.util.Map;
 import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrQuery.ORDER;
 import org.apache.solr.client.solrj.SolrServerException;
-import org.apache.solr.client.solrj.impl.BaseHttpSolrClient;
-import org.apache.solr.client.solrj.impl.HttpSolrClient;
-import org.apache.solr.client.solrj.request.CoreAdminRequest;
-import org.apache.solr.client.solrj.response.CoreAdminResponse;
-import org.apache.solr.client.solrj.response.QueryResponse;
-import org.apache.solr.client.solrj.SolrRequest.METHOD;
 import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
-import org.apache.solr.common.util.NamedList;
 import org.ndexbio.model.exceptions.NdexException;
 import org.ndexbio.model.tools.SearchUtilities;
-import org.ndexbio.rest.Configuration;
 
-public class UserIndexManager implements AutoCloseable{
+public class UserIndexManager {
 
-	private String solrUrl ;
-	
 	protected static final String coreName = 
 			"ndex-users" ; 
-	protected HttpSolrClient client;
-	
-	//private SolrInputDocument doc ;
+	private final SolrClientWrapper client;
 	
 	public static final String UUID = "uuid";
 	private static final String NAME = "userName";
@@ -70,40 +58,12 @@ public class UserIndexManager implements AutoCloseable{
 	private static final String DISPLAYNAME = "displayName";		
 	
 	
-	public UserIndexManager() {
-		solrUrl = Configuration.getInstance().getSolrURL();
-		client = new HttpSolrClient.Builder(solrUrl).build();
-		//doc = new SolrInputDocument();
-
+	public UserIndexManager(SolrClientWrapper client) {
+		this.client = client;
 	}
 	
 	public void createCoreIfNotExists() throws SolrServerException, IOException, NdexException {
-			
-		CoreAdminResponse foo = CoreAdminRequest.getStatus(coreName,client);	
-		if (foo.getStatus() != 0 ) {
-			throw new NdexException ("Failed to get status of solrIndex for " + coreName + ". Error: " + foo.getResponseHeader().toString());
-		}
-		NamedList<Object> bar = foo.getResponse();
-		
-		NamedList<Object> st = (NamedList<Object>)bar.get("status");
-		
-		NamedList<Object> core = (NamedList<Object>)st.get(coreName);
-		if ( core.size() == 0 ) {
-			System.out.println("Solr core " + coreName + " doesn't exist. Creating it now ....");
-
-			CoreAdminRequest.Create creator = new CoreAdminRequest.Create(); 
-			creator.setCoreName(coreName);
-			creator.setConfigSet( coreName); 
-			foo = creator.process(client);				
-			if ( foo.getStatus() != 0 ) {
-				throw new NdexException ("Failed to create solrIndex for " + coreName + ". Error: " + foo.getResponseHeader().toString());
-			}
-			System.out.println("Done.");		
-		}
-		else {
-			System.out.println("Found core "+ coreName + " in Solr.");	
-		}
-		
+		client.createCoreIfNeeded(coreName);
 	}
 	
 	/**
@@ -113,23 +73,11 @@ public class UserIndexManager implements AutoCloseable{
 	 * @throws NdexException 
 	 */
 	public void dropIndex() throws IOException, SolrServerException, NdexException {
-		try {
-			client.setBaseURL(solrUrl);
-		//	CollectionAdminRequest.deleteCollection(collectionName).process(client);
-			
-			CoreAdminRequest.unloadCore(UserIndexManager.coreName, true, true, client);
-		} catch (HttpSolrClient.RemoteSolrException e4) {
-			System.out.println(e4.code() + " - " + e4.getMessage());
-			if ( e4.getMessage().indexOf("Cannot unload non-existent core") == -1) {
-				e4.printStackTrace();
-				throw new NdexException("Unexpected Solr Exception: " + e4.getMessage());
-			}	
-		} 
+		client.dropCore(coreName);
 	}
 	
 	public SolrDocumentList searchUsers (String searchTerms, int limit, int offset) 
 			throws SolrServerException, IOException, NdexException {
-		client.setBaseURL(solrUrl+ "/" + coreName);
 
 		SolrQuery solrQuery = new SolrQuery();	
 			
@@ -143,22 +91,11 @@ public class UserIndexManager implements AutoCloseable{
     	solrQuery.set("defType", "edismax");
     	solrQuery.set("qf","uuid^10 userName^5 firstName^3 lastName^3 displayName^2 description");
 		
-	//	solrQuery.setFilterQueries(resultFilter) ;
-		
-		try {
-			QueryResponse rsp = client.query(solrQuery, METHOD.POST);
-
-			SolrDocumentList dds = rsp.getResults();
-
-			return dds;
-		} catch (BaseHttpSolrClient.RemoteSolrException e) {
-			throw NetworkGlobalIndexManager.convertException(e, coreName);
-		}
+		return client.query(coreName, solrQuery).getResults();
 	}
 	
 	
-	public void addUser(String userId, String userName, String firstName, String lastName, String displayName, String description) throws SolrServerException, IOException {
-		client.setBaseURL(solrUrl + "/" + coreName);
+	public void addUser(String userId, String userName, String firstName, String lastName, String displayName, String description) throws SolrServerException, IOException, NdexException {
 
 		SolrInputDocument doc = new SolrInputDocument();
 
@@ -176,36 +113,16 @@ public class UserIndexManager implements AutoCloseable{
 		
 		Collection<SolrInputDocument> docs = new ArrayList<>(1);
 		docs.add(doc);
-		client.add(docs);
-	//	client.commit();
-		docs.clear();
-		doc = null;
-
+		client.add(coreName, docs);
 	}
 	
 
 	
-	public void deleteUser(String userId) throws SolrServerException, IOException {
-		client.setBaseURL(solrUrl + "/" + coreName);
-		client.deleteById(userId);
-	//	client.commit();
+	public void deleteUser(String userId) throws SolrServerException, IOException, NdexException {
+		client.delete(coreName, userId, false);
 	}
 	
-/*	public void commit () throws SolrServerException, IOException {
-		client.setBaseURL(solrUrl + "/" + coreName);
-		Collection<SolrInputDocument> docs = new ArrayList<>(1);
-		docs.add(doc);
-		client.add(docs);
-		client.commit();
-		docs.clear();
-		doc = null;
-
-	} */
-	
-
-	
-	public void updateUser(String userId, String userName, String firstName, String lastName, String displayName, String description) throws SolrServerException, IOException {
-		client.setBaseURL(solrUrl + "/" + coreName);
+	public void updateUser(String userId, String userName, String firstName, String lastName, String displayName, String description) throws SolrServerException, IOException, NdexException {
 		SolrInputDocument tmpdoc = new SolrInputDocument();
 		tmpdoc.addField(UUID, userId);
 		 
@@ -219,10 +136,6 @@ public class UserIndexManager implements AutoCloseable{
 			cmd.put("set", description);
 			tmpdoc.addField(DESC, cmd);
 
-		
-		//String newVersion = table.get(NdexClasses.Network_P_version);
-	//	if ( newVersion !=null) {
-		//	Map<String,String>
 			cmd = new HashMap<>();
 			cmd.put("set", firstName);
 			tmpdoc.addField(FIRSTNAME, cmd);
@@ -234,18 +147,10 @@ public class UserIndexManager implements AutoCloseable{
 			cmd = new HashMap<>();
 			cmd.put("set", displayName);
 			tmpdoc.addField(DISPLAYNAME, cmd);
-	//	}
 		
 		Collection<SolrInputDocument> docs = new ArrayList<>(1);
 		docs.add(tmpdoc);
-		client.add(docs);
-	//	client.commit();
-
-	}
-
-	@Override
-	public void close() throws Exception {
-		this.client.close();
+		client.add(coreName, docs);
 	}
 		
 }

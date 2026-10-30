@@ -28,6 +28,10 @@ On startup the tool calls `Configuration.createInstance()`, which reads
 Solr connection details are passed on the command line. Make sure the config
 file is in place and points at the intended server before running.
 
+Every Solr request must finish within `SolrRequestTimeout` seconds (default 15).
+A rebuild of a large index can commit for longer than that; raise it in
+`ndex.properties` for the run if requests fail with "Search service unavailable".
+
 ```bash
 # optional: be explicit about the config path
 export ndexConfigurationPath=/opt/ndex/conf/ndex.properties
@@ -49,11 +53,10 @@ terminal (see the `unlist-public-none` section for an example).
 
 | Command | Scope | What it does |
 |---|---|---|
-| `all` | User + group + all networks | Full rebuild: user index, group index, then every eligible network's global index. |
+| `all` | User + group + all networks | Full rebuild: user index, group index, then every eligible network's per-network query core. |
 | `user` | User index | Rebuilds only the user search index. |
 | `group` | Group index | Rebuilds only the group search index. |
-| `all-networks-online` | All networks | Rebuilds network indexes without the `islocked=false` precondition; tolerates per-network failures and keeps going. |
-| `global-networks` | Global network index | Rebuilds the global network index only (no per-network query cores). |
+| `all-networks-online` | All networks | Rebuilds per-network query cores without the `islocked=false` precondition; tolerates per-network failures and keeps going. |
 | `all-local` | Per-network query cores | Creates the per-network Solr query cores for networks at or above the autocreate node-count threshold. |
 | `nfs` | NFS index | Clears `ndex-nfs`, then rebuilds every folder, shortcut and network document from PostgreSQL. Offline equivalent of `GET /v3/admin/reindex-v3`. |
 | `unlist-public-none` | Maintenance | Flips `PUBLIC` + `solr_idx_lvl=NONE` networks to `UNLISTED` and re-indexes them so the indexed document carries the new visibility. |
@@ -66,8 +69,8 @@ java -cp "..." org.ndexbio.common.solr.SolrIndexBuilder all
 ```
 
 Runs three phases in order: rebuild the user index, rebuild the group index,
-then rebuild the global index for every network that is complete, not deleted,
-validated, not locked, and has no error. Sleeps 2 seconds every 500 networks to
+then rebuild the per-network query core of every network that is complete, not
+deleted, validated, not locked, and has no error. Sleeps 2 seconds every 500 networks to
 ease load on Solr. This is the heaviest command and the most likely to stress
 Solr heap on a large server.
 
@@ -93,21 +96,11 @@ Creates the group core if needed and reindexes every non-deleted group.
 java -cp "..." org.ndexbio.common.solr.SolrIndexBuilder all-networks-online
 ```
 
-Rebuilds network indexes for all complete, non-deleted, validated networks with
+Rebuilds per-network query cores for all complete, non-deleted, validated networks with
 no error — note this command does **not** require `islocked=false`, so it can
 run against networks that are currently locked. Each network is wrapped in its
 own try/catch, so a single failure is logged and the loop continues. Sleeps 2
 seconds every 500 networks.
-
-### `global-networks`
-
-```bash
-java -cp "..." org.ndexbio.common.solr.SolrIndexBuilder global-networks
-```
-
-Rebuilds only the global network index (the cross-network search doc), skipping
-the per-network query cores. Same eligibility filter as `all` (complete, not
-deleted, validated, not locked, no error). Sleeps 2 seconds every 1000 networks.
 
 ### `all-local`
 
@@ -191,15 +184,15 @@ java -cp "..." org.ndexbio.common.solr.SolrIndexBuilder 6d19dd59-0e56-11eb-9eee-
 ```
 
 Any argument that isn't one of the named commands is treated as a network UUID.
-The network's index is rebuilt (global plus per-network query core if it meets
-the threshold) and the global index is committed at the end. An invalid UUID
+The network's per-network query core is rebuilt if the network meets the node-count
+threshold. An invalid UUID
 will throw an `IllegalArgumentException` from `UUID.fromString`.
 
 ## Pre-run checklist
 
 1. **Confirm the target server.** `ndex.properties` decides which DB and Solr
    the run hits — verify it before launching, especially on shared boxes.
-2. **Confirm Solr heap.** Large rebuilds (`all`, `global-networks`,
+2. **Confirm Solr heap.** Large rebuilds (`all`,
    `all-networks-online`) can OOM Solr if `SOLR_JAVA_MEM` is left at the 512MB
    default. Check `solr.in.sh` has an explicit heap (e.g.
    `SOLR_JAVA_MEM="-Xms2g -Xmx4g"`) and that Solr was restarted after any change.
@@ -215,3 +208,4 @@ will throw an `IllegalArgumentException` from `UUID.fromString`.
 | `NetworkConcurrentModificationException` on first/most networks | Stale `islocked=true` rows from a crashed run | `UPDATE network SET islocked=false WHERE islocked=true;` then rerun. |
 | No console output, looks hung | `../logs` doesn't resolve from CWD, file logging failed | Run from a dir where `../logs` is writable, or monitor the DB count. |
 | Solr goes down mid-run | Solr heap too small (512MB default) | Set `SOLR_JAVA_MEM` in `solr.in.sh`, restart Solr, rerun. |
+| `Search service unavailable, retry later` on a large commit | The commit took longer than `SolrRequestTimeout` (15 s default) | Raise `SolrRequestTimeout` in `ndex.properties`, rerun. |

@@ -45,7 +45,6 @@ public class TestSolrIndexBuilder {
 		private int attempts;
 
 		FailingBuilder(RuntimeException failure) {
-			super((NetworkGlobalIndexManager) null);
 			this.failure = failure;
 		}
 
@@ -154,7 +153,7 @@ public class TestSolrIndexBuilder {
 
 	@Test
 	public void aPreExistingCoreIsNotCountedAsAFailure() {
-		SolrIndexBuilder builder = new SolrIndexBuilder((NetworkGlobalIndexManager) null) {
+		SolrIndexBuilder builder = new SolrIndexBuilder() {
 			@Override
 			void rebuildLocalNetworkIndex(UUID networkId, boolean ignoreDeletion) {
 				throw new org.apache.solr.client.solrj.impl.HttpSolrClient.RemoteSolrException(
