@@ -28,7 +28,7 @@ only.
 ### Fixed
 
 - **Search no longer stalls server-wide under bursts of requests.** Every search used to build and tear
-down its own connections to Solr; the server now keeps one shared connection pool for its lifetime.
+down its own connections to Solr; the server now keeps one shared connection pool for its lifetime. [#225](https://github.com/ndexbio/ndex-rest/issues/225)
 
 ## [NDEx REST Helm 0.1.0] - Unreleased
 
